@@ -6,7 +6,6 @@ import 'screens/sure_listesi.dart';
 import 'utils/storage_helper.dart';
 import 'constants/app_colors.dart';
 import 'constants/app_strings.dart';
-import 'constants/app_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,7 +60,7 @@ class KuranEzberApp extends StatelessWidget {
             return MediaQuery(
               // Text scaling'i sınırla
               data: MediaQuery.of(context).copyWith(
-                textScaleFactor: MediaQuery.of(context).textScaleFactor.clamp(0.8, 1.2),
+                textScaler: TextScaler.linear(MediaQuery.of(context).textScaleFactor.clamp(0.8, 1.2)),
               ),
               child: child!,
             );
@@ -200,14 +199,14 @@ class KuranEzberApp extends StatelessWidget {
 
       // Switch Theme
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.primary;
           }
           return Colors.grey[400];
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.primary.withOpacity(0.5);
           }
           return Colors.grey[300];
@@ -397,14 +396,14 @@ class KuranEzberApp extends StatelessWidget {
 
       // Switch Theme
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.accent;
           }
           return Colors.grey[400];
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.accent.withOpacity(0.5);
           }
           return Colors.grey[600];

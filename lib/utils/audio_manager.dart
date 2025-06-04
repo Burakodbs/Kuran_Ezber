@@ -1,7 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../constants/app_constants.dart';
 
 class AudioManager {
   static final AudioManager _instance = AudioManager._internal();
