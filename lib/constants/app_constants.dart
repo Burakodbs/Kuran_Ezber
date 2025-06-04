@@ -1,179 +1,81 @@
-import 'package:flutter/material.dart';
+class AppConstants {
+  // API endpoints
+  static const String baseUrl = 'http://api.alquran.cloud/v1';
+  static const String turkishEdition = 'tr.diyanet';
+  static const String arabicEdition = 'quran-uthmani';
+  static const String audioEdition = 'ar.alafasy';
 
-class AppColors {
-  // Ana Renkler
-  static const Color primary = Color(0xFF1B4F3A);
-  static const Color primaryDark = Color(0xFF0D2E21);
-  static const Color secondary = Color(0xFF2E7D32);
-  static const Color accent = Color(0xFF4CAF50);
+  // Alternative API URLs
+  static const String backupApiUrl = 'https://api.quran.com/api/v4';
+  static const String audioBaseUrl = 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/';
 
-  // Açık Tema Renkleri
-  static const Color lightBackground = Color(0xFFF8F8F8);
-  static const Color lightSurface = Colors.white;
-  static const Color lightCard = Colors.white;
-  static const Color lightText = Colors.black87;
-  static const Color lightTextSecondary = Colors.black54;
+  // Cache settings
+  static const Duration cacheExpiration = Duration(hours: 24);
+  static const int maxCacheSize = 50; // MB
+  static const String cacheVersion = 'v1.0';
 
-  // Koyu Tema Renkleri
-  static const Color darkBackground = Color(0xFF121212);
-  static const Color darkSurface = Color(0xFF1E1E1E);
-  static const Color darkCard = Color(0xFF2D2D2D);
-  static const Color darkText = Colors.white;
-  static const Color darkTextSecondary = Colors.white70;
+  // UI settings
+  static const double defaultFontSize = 22.0;
+  static const double minFontSize = 16.0;
+  static const double maxFontSize = 32.0;
+  static const Duration animationDuration = Duration(milliseconds: 300);
+  static const Duration fastAnimationDuration = Duration(milliseconds: 150);
 
-  // Durum Renkleri
-  static const Color success = Color(0xFF4CAF50);
-  static const Color warning = Color(0xFFFFEB3B);
-  static const Color error = Color(0xFFF44336);
-  static const Color info = Color(0xFF2196F3);
+  // Audio settings
+  static const Duration audioTimeout = Duration(seconds: 15);
+  static const Duration connectionTimeout = Duration(seconds: 10);
+  static const List<String> supportedAudioFormats = ['mp3', 'ogg'];
 
-  // Özel Renkler
-  static const Color audioPlaying = Color(0xFF4CAF50);
-  static const Color audioPlayingBackground = Color(0xFF4CAF50);
-  static const Color selectedAyah = Color(0xFF1B4F3A);
-  static const Color hoveredAyah = Color(0xFFFFEB3B);
-  static const Color bookmarked = Color(0xFFF44336);
+  // App settings
+  static const String appVersion = '1.0.0';
+  static const String developer = 'KSU Elektronik Mushaf Ekibi';
+  static const int currentDbVersion = 1;
 
-  // Gradient Renkleri
-  static const List<Color> primaryGradient = [
-    Color(0xFF1B4F3A),
-    Color(0xFF2E7D32),
+  // Pagination
+  static const int itemsPerPage = 20;
+  static const int maxSearchResults = 100;
+
+  // Local storage keys
+  static const String keyBookmarks = 'bookmarks';
+  static const String keyLastRead = 'last_read';
+  static const String keySettings = 'settings';
+  static const String keyCache = 'cache';
+  static const String keyTheme = 'theme_mode';
+  static const String keyFontSize = 'font_size';
+  static const String keyTranslation = 'translation_enabled';
+
+  // Default values
+  static const bool defaultTranslationEnabled = false;
+  static const bool defaultDarkMode = false;
+  static const String defaultTranslationLanguage = 'tr.diyanet';
+  static const String defaultAudioReciter = 'ar.alafasy';
+
+  // Network retry settings
+  static const int maxRetryAttempts = 3;
+  static const Duration retryDelay = Duration(seconds: 2);
+
+  // Surah counts (1-114)
+  static const List<int> surahAyahCounts = [
+    7, 286, 200, 176, 120, 165, 206, 75, 129, 109, // 1-10
+    123, 111, 43, 52, 99, 128, 111, 110, 98, 135, // 11-20
+    112, 78, 118, 64, 77, 227, 93, 88, 69, 60, // 21-30
+    34, 30, 73, 54, 45, 83, 182, 88, 75, 85, // 31-40
+    54, 53, 89, 59, 37, 35, 38, 29, 18, 45, // 41-50
+    60, 49, 62, 55, 78, 96, 29, 22, 24, 13, // 51-60
+    14, 11, 11, 18, 12, 12, 30, 52, 52, 44, // 61-70
+    28, 28, 20, 56, 40, 31, 50, 40, 46, 42, // 71-80
+    29, 19, 36, 25, 22, 17, 19, 26, 30, 20, // 81-90
+    15, 21, 11, 8, 8, 19, 5, 8, 8, 11, // 91-100
+    11, 8, 3, 9, 5, 4, 7, 3, 6, 3, // 101-110
+    5, 4, 5, 6 // 111-114
   ];
 
-  static const List<Color> primaryGradientDark = [
-    Color(0xFF0D2E21),
-    Color(0xFF1B4F3A),
-  ];
+  // Popular surahs for quick access
+  static const List<int> popularSurahs = [1, 2, 3, 4, 18, 36, 55, 67, 112, 113, 114];
 
-  static const List<Color> accentGradient = [
-    Color(0xFF4CAF50),
-    Color(0xFF66BB6A),
-  ];
-
-  // Opaklık Değerleri
-  static const double opacity10 = 0.1;
-  static const double opacity20 = 0.2;
-  static const double opacity30 = 0.3;
-  static const double opacity50 = 0.5;
-  static const double opacity70 = 0.7;
-  static const double opacity80 = 0.8;
-  static const double opacity90 = 0.9;
-
-  // Gölge Renkleri
-  static Color shadowLight = Colors.black.withOpacity(0.1);
-  static Color shadowMedium = Colors.black.withOpacity(0.2);
-  static Color shadowHeavy = Colors.black.withOpacity(0.3);
-
-  // Özel Renkler (Context'e göre)
-  static Color getBackgroundColor(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? darkBackground
-        : lightBackground;
-  }
-
-  static Color getSurfaceColor(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? darkSurface
-        : lightSurface;
-  }
-
-  static Color getCardColor(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? darkCard
-        : lightCard;
-  }
-
-  static Color getTextColor(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? darkText
-        : lightText;
-  }
-
-  static Color getTextSecondaryColor(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? darkTextSecondary
-        : lightTextSecondary;
-  }
-
-  static List<Color> getPrimaryGradient(BuildContext context) {
-    return Theme.of(context).brightness == Brightness.dark
-        ? primaryGradientDark
-        : primaryGradient;
-  }
-
-  // Ayet durumuna göre renkler
-  static Color getAyahBackgroundColor(BuildContext context, {
-    bool isPlaying = false,
-    bool isSelected = false,
-    bool isHovered = false,
-  }) {
-    final theme = Theme.of(context);
-
-    if (isPlaying) {
-      return primary.withOpacity(0.15);
-    } else if (isSelected) {
-      return primary.withOpacity(0.08);
-    } else if (isHovered) {
-      return warning.withOpacity(0.1);
-    }
-
-    return getCardColor(context);
-  }
-
-  static Color getAyahBorderColor(BuildContext context, {
-    bool isSelected = false,
-    bool isHovered = false,
-  }) {
-    if (isSelected || isHovered) {
-      return primary;
-    }
-    return Theme.of(context).dividerColor;
-  }
-
-  static Color getAyahTextColor(BuildContext context, {
-    bool isPlaying = false,
-  }) {
-    if (isPlaying) {
-      return primary;
-    }
-    return getTextColor(context);
-  }
-
-  // Surah Card renkleri
-  static List<Color> getSurahCardGradient(BuildContext context) {
-    return getPrimaryGradient(context);
-  }
-
-  // Audio durumu renkleri
-  static Color getAudioButtonColor(bool isPlaying) {
-    return isPlaying ? audioPlaying : primary;
-  }
-
-  // Bookmark renkleri
-  static Color getBookmarkColor(bool isBookmarked) {
-    return isBookmarked ? bookmarked : primary;
-  }
-
-  // Tema bazlı renk seçiciler
-  static ColorScheme getLightColorScheme() {
-    return ColorScheme.fromSwatch().copyWith(
-      primary: primary,
-      secondary: secondary,
-      surface: lightSurface,
-      onPrimary: Colors.white,
-      onSecondary: Colors.white,
-      onSurface: lightText,
-    );
-  }
-
-  static ColorScheme getDarkColorScheme() {
-    return ColorScheme.fromSwatch(brightness: Brightness.dark).copyWith(
-      primary: accent,
-      secondary: Color(0xFF66BB6A),
-      surface: darkSurface,
-      onPrimary: Colors.white,
-      onSecondary: Colors.white,
-      onSurface: darkText,
-    );
-  }
+  // Juz information
+  static const int totalJuz = 30;
+  static const int totalPages = 604;
+  static const int totalSurahs = 114;
+  static const int totalAyahs = 6236;
 }

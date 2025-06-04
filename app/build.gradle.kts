@@ -7,6 +7,8 @@ plugins {
 android {
     namespace = "com.example.kuranezber"
     compileSdk = 35
+    ndkVersion = "27.0.12077973"
+
 
     defaultConfig {
         applicationId = "com.example.kuranezber"
