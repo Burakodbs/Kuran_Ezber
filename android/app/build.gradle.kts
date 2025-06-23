@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.kuran_ezber"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"  // Bu satırı ekleyin
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
