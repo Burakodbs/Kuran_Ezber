@@ -27,7 +27,19 @@ class AyetItem extends StatefulWidget {
 }
 
 class _AyetItemState extends State<AyetItem> {
-  bool _isExpanded = false;
+  bool _showActions = false;
+
+  // Arapça rakamları
+  static const Map<int, String> arabicNumbers = {
+    0: '٠', 1: '١', 2: '٢', 3: '٣', 4: '٤',
+    5: '٥', 6: '٦', 7: '٧', 8: '٨', 9: '٩'
+  };
+
+  String _convertToArabicNumber(int number) {
+    return number.toString().split('').map((digit) {
+      return arabicNumbers[int.parse(digit)] ?? digit;
+    }).join('');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,259 +47,40 @@ class _AyetItemState extends State<AyetItem> {
     final theme = Theme.of(context);
     final isBookmarked = provider.isBookmarked(widget.ayet.bookmarkKey);
 
-    return Directionality(
-      textDirection: TextDirection.rtl, // Tüm widget RTL
-      child: Container(
-        decoration: BoxDecoration(
-          color: _getBackgroundColor(theme),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _getBorderColor(theme),
-            width: widget.isSelected ? 2 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header: Ayet numarası + Kontroller
-                  _buildHeader(theme, isBookmarked),
-
-                  const SizedBox(height: 8),
-
-                  // Arapça metin (zaten RTL)
-                  _buildArabicText(theme, provider),
-
-                  // Çeviri (LTR)
-                  if (provider.translationGoster && widget.ayet.turkish.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    _buildTranslationText(theme),
-                  ],
-
-                  // Genişletilmiş eylemler
-                  if (_isExpanded) ...[
-                    const SizedBox(height: 10),
-                    _buildActionButtons(theme, provider, isBookmarked),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(ThemeData theme, bool isBookmarked) {
-    return Directionality(
-      textDirection: TextDirection.ltr, // Header kontrollerini LTR tut
-      child: Row(
-        children: [
-          // Ayet numarası (sağ tarafta)
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: widget.isPlaying ? Colors.green : theme.primaryColor,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: (widget.isPlaying ? Colors.green : theme.primaryColor)
-                      .withOpacity(0.3),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                '${widget.ayet.number}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Yer işareti göstergesi
-          if (isBookmarked) ...[
-            Icon(
-              Icons.bookmark,
-              color: Colors.red.shade600,
-              size: 18,
-            ),
-            const SizedBox(width: 4),
-          ],
-
-          const Spacer(),
-
-          // Genişlet butonu
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => setState(() => _isExpanded = !_isExpanded),
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  _isExpanded ? Icons.expand_less : Icons.more_vert,
-                  color: theme.primaryColor.withOpacity(0.7),
-                  size: 20,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 4),
-
-          // Oynat butonu (en sağda)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.onPlayPressed,
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  widget.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                  color: theme.primaryColor,
-                  size: 24,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildArabicText(ThemeData theme, KuranProvider provider) {
-    return Text(
-      widget.ayet.arabic,
-      textAlign: TextAlign.right,
-      textDirection: TextDirection.rtl,
-      style: TextStyle(
-        fontSize: _getResponsiveFontSize(provider.arabicFontSize),
-        height: 1.6,
-        color: widget.isPlaying
-            ? theme.primaryColor
-            : theme.textTheme.bodyLarge?.color ?? Colors.black87,
-        fontWeight: widget.isPlaying ? FontWeight.w600 : FontWeight.w400,
-        fontFamily: 'UthmanicHafs',
-        wordSpacing: 2,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-
-  Widget _buildTranslationText(ThemeData theme) {
-    return Directionality(
-      textDirection: TextDirection.ltr, // Türkçe çeviri LTR
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: theme.primaryColor.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: theme.primaryColor.withOpacity(0.2),
-            width: 0.5,
-          ),
-        ),
-        child: Text(
-          widget.ayet.turkish,
-          style: TextStyle(
-            fontSize: 12,
-            color: theme.primaryColor.withOpacity(0.85),
-            height: 1.4,
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.justify,
-          textDirection: TextDirection.ltr, // Türkçe LTR
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(ThemeData theme, KuranProvider provider, bool isBookmarked) {
-    return Directionality(
-      textDirection: TextDirection.ltr, // Butonlar LTR kalsın
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(
-          color: theme.primaryColor.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildActionButton(
-              icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-              label: isBookmarked ? 'Kaldır' : 'İşaretle',
-              onPressed: () => provider.toggleYerIsareti(widget.ayet.bookmarkKey),
-              color: isBookmarked ? Colors.red.shade600 : theme.primaryColor,
-            ),
-            _buildActionButton(
-              icon: Icons.share_outlined,
-              label: 'Paylaş',
-              onPressed: _handleShare,
-              color: theme.primaryColor,
-            ),
-            _buildActionButton(
-              icon: Icons.copy_outlined,
-              label: 'Kopyala',
-              onPressed: _handleCopy,
-              color: theme.primaryColor,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    required Color color,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
+    return Container(
+      width: double.infinity, // Tam genişlik
+      margin: const EdgeInsets.only(bottom: 6), // Satırlar arası minimal boşluk
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onLongPress: () => setState(() => _showActions = !_showActions),
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: _getBackgroundColor(theme),
+            borderRadius: BorderRadius.circular(6),
+            border: widget.isSelected ? Border.all(
+              color: theme.primaryColor,
+              width: 1,
+            ) : null,
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: color, size: 16),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              // Ana Arapça metin + Ayet numarası (tek satır)
+              _buildArabicTextWithNumber(theme, provider),
+
+              // Çeviri (varsa)
+              if (provider.translationGoster && widget.ayet.turkish.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                _buildTranslationText(theme),
+              ],
+
+              // Quick actions (sadece seçiliyse)
+              if (_showActions) ...[
+                const SizedBox(height: 6),
+                _buildQuickActions(theme, provider, isBookmarked),
+              ],
             ],
           ),
         ),
@@ -295,35 +88,208 @@ class _AyetItemState extends State<AyetItem> {
     );
   }
 
-  // Responsive font size
-  double _getResponsiveFontSize(double baseFontSize) {
-    final screenWidth = MediaQuery.of(context).size.width;
+  Widget _buildArabicTextWithNumber(ThemeData theme, KuranProvider provider) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: RichText(
+        textAlign: TextAlign.justify,
+        textDirection: TextDirection.rtl,
+        text: TextSpan(
+          children: [
+            // Arapça ayet metni
+            TextSpan(
+              text: widget.ayet.arabic,
+              style: TextStyle(
+                fontSize: provider.arabicFontSize,
+                height: 1.8,
+                color: widget.isPlaying
+                    ? theme.primaryColor
+                    : theme.textTheme.bodyLarge?.color ?? Colors.black87,
+                fontWeight: widget.isPlaying ? FontWeight.w600 : FontWeight.w400,
+                fontFamily: 'UthmanicHafs',
+                wordSpacing: 3,
+                letterSpacing: 0.5,
+              ),
+            ),
 
-    if (screenWidth > 800) {
-      return baseFontSize; // Desktop - normal boyut
-    } else if (screenWidth > 600) {
-      return baseFontSize * 0.9; // Tablet - biraz küçük
-    } else {
-      return baseFontSize * 0.85; // Mobile - daha küçük
-    }
+            // Küçük boşluk
+            const TextSpan(text: ' '),
+
+            // Arapça ayet numarası - yuvarlak işaret
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                child: _buildAyahNumberCircle(theme),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAyahNumberCircle(ThemeData theme) {
+    return Container(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Ana çember
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: widget.isPlaying
+                    ? Colors.green.withOpacity(0.7)
+                    : theme.primaryColor.withOpacity(0.6),
+                width: 1,
+              ),
+              color: widget.isPlaying
+                  ? Colors.green.withOpacity(0.1)
+                  : theme.primaryColor.withOpacity(0.1),
+            ),
+            child: Center(
+              child: Text(
+                _convertToArabicNumber(widget.ayet.number),
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: widget.isPlaying
+                      ? Colors.green.shade700
+                      : theme.primaryColor,
+                  fontFamily: 'UthmanicHafs',
+                ),
+              ),
+            ),
+          ),
+
+          // Oynatma göstergesi - küçük yeşil nokta
+          if (widget.isPlaying)
+            Positioned(
+              top: -1,
+              right: -1,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.green,
+                ),
+              ),
+            ),
+
+          // Bookmark göstergesi - küçük kırmızı nokta
+          if (Provider.of<KuranProvider>(context, listen: false)
+              .isBookmarked(widget.ayet.bookmarkKey))
+            Positioned(
+              top: -1,
+              left: -1,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTranslationText(ThemeData theme) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: theme.primaryColor.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          widget.ayet.turkish,
+          style: TextStyle(
+            fontSize: 11,
+            color: theme.primaryColor.withOpacity(0.8),
+            height: 1.4,
+            fontStyle: FontStyle.italic,
+          ),
+          textAlign: TextAlign.justify,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(ThemeData theme, KuranProvider provider, bool isBookmarked) {
+    return Container(
+      height: 28,
+      decoration: BoxDecoration(
+        color: theme.primaryColor.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildQuickAction(
+            icon: widget.isPlaying ? Icons.pause : Icons.play_arrow,
+            onPressed: widget.onPlayPressed,
+            color: widget.isPlaying ? Colors.green : theme.primaryColor,
+          ),
+          _buildQuickAction(
+            icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+            onPressed: () => provider.toggleYerIsareti(widget.ayet.bookmarkKey),
+            color: isBookmarked ? Colors.red : theme.primaryColor,
+          ),
+          _buildQuickAction(
+            icon: Icons.share_outlined,
+            onPressed: _handleShare,
+            color: theme.primaryColor,
+          ),
+          _buildQuickAction(
+            icon: Icons.copy_outlined,
+            onPressed: _handleCopy,
+            color: theme.primaryColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAction({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 28,
+          height: 28,
+          child: Icon(
+            icon,
+            size: 14,
+            color: color,
+          ),
+        ),
+      ),
+    );
   }
 
   Color _getBackgroundColor(ThemeData theme) {
     if (widget.isPlaying) {
-      return theme.primaryColor.withOpacity(0.12);
+      return theme.primaryColor.withOpacity(0.08);
     } else if (widget.isSelected) {
-      return theme.primaryColor.withOpacity(0.06);
+      return theme.primaryColor.withOpacity(0.04);
+    } else if (_showActions) {
+      return theme.primaryColor.withOpacity(0.02);
     }
-    return theme.cardColor;
-  }
-
-  Color _getBorderColor(ThemeData theme) {
-    if (widget.isSelected) {
-      return theme.primaryColor;
-    } else if (widget.isPlaying) {
-      return theme.primaryColor.withOpacity(0.6);
-    }
-    return theme.dividerColor.withOpacity(0.5);
+    return Colors.transparent;
   }
 
   void _handleShare() {
@@ -355,7 +321,6 @@ ${widget.ayet.turkish.isNotEmpty ? widget.ayet.turkish : ''}
           backgroundColor: backgroundColor,
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     }

@@ -443,6 +443,8 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     );
   }
 
+// _buildMainContent metodunu değiştir:
+
   Widget _buildMainContent(ThemeData theme) {
     if (_yukleniyor) {
       return Center(
@@ -498,20 +500,182 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
       );
     }
 
-    // RTL ScrollView
+    // Mushaf Style Layout
     return Directionality(
       textDirection: TextDirection.rtl,
       child: SingleChildScrollView(
         controller: _scrollController,
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(8),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return _buildAutoFitAyahLayout(constraints.maxWidth);
-          },
+        padding: const EdgeInsets.all(16),
+        child: _buildMushafLayout(theme),
+      ),
+    );
+  }
+
+// Mushaf layout builder
+  Widget _buildMushafLayout(ThemeData theme) {
+    final provider = Provider.of<KuranProvider>(context, listen: false);
+    List<Widget> wordWidgets = [];
+
+    for (int ayetIndex = 0; ayetIndex < _ayetler.length; ayetIndex++) {
+      final ayet = _ayetler[ayetIndex];
+      final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
+      final isSelected = _seciliAyetIndex == ayetIndex;
+
+      // Ayeti kelimelere böl
+      final words = ayet.arabic.split(' ').where((word) => word.isNotEmpty).toList();
+
+      // Her kelimeyi widget'a çevir
+      for (int wordIndex = 0; wordIndex < words.length; wordIndex++) {
+        final word = words[wordIndex];
+        final isLastWord = wordIndex == words.length - 1;
+
+        wordWidgets.add(
+          _buildWordWidget(
+            word: word,
+            ayet: ayet,
+            ayetIndex: ayetIndex,
+            isLastWord: isLastWord,
+            isPlaying: isCurrentAudio,
+            isSelected: isSelected,
+            provider: provider,
+            theme: theme,
+          ),
+        );
+      }
+    }
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 8,
+      textDirection: TextDirection.rtl,
+      alignment: WrapAlignment.start,
+      runAlignment: WrapAlignment.start,
+      children: wordWidgets,
+    );
+  }
+
+// Kelime widget'ı
+  Widget _buildWordWidget({
+    required String word,
+    required AyetModel ayet,
+    required int ayetIndex,
+    required bool isLastWord,
+    required bool isPlaying,
+    required bool isSelected,
+    required KuranProvider provider,
+    required ThemeData theme,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _seciliAyetIndex = isSelected ? null : ayetIndex;
+          _aktifAyetIndex = ayetIndex;
+        });
+        _saveReadingPosition(ayetIndex);
+      },
+      onLongPress: () => _playAyetAudio(ayet),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.primaryColor.withOpacity(0.1)
+              : isPlaying
+              ? Colors.green.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Kelime
+            Text(
+              word,
+              style: TextStyle(
+                fontSize: provider.arabicFontSize,
+                height: 1.8,
+                color: isPlaying
+                    ? Colors.green.shade700
+                    : theme.textTheme.bodyLarge?.color ?? Colors.white,
+                fontWeight: isPlaying ? FontWeight.w600 : FontWeight.w400,
+                fontFamily: 'UthmanicHafs',
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+
+            // Ayet numarası (son kelimeyse)
+            if (isLastWord) ...[
+              const SizedBox(width: 4),
+              _buildMushafAyahNumber(ayet, isPlaying, provider),
+            ],
+          ],
         ),
       ),
     );
+  }
+
+// Mushaf tarzı ayet numarası
+  Widget _buildMushafAyahNumber(AyetModel ayet, bool isPlaying, KuranProvider provider) {
+    final isBookmarked = provider.isBookmarked(ayet.bookmarkKey);
+
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isPlaying
+            ? Colors.green.withOpacity(0.2)
+            : const Color(0xFF9C27B0).withOpacity(0.8), // Mor renk
+        border: Border.all(
+          color: isPlaying
+              ? Colors.green
+              : const Color(0xFF9C27B0),
+          width: 1.5,
+        ),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Ayet numarası
+          Text(
+            _convertToArabicNumber(ayet.number),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontFamily: 'UthmanicHafs',
+            ),
+          ),
+
+          // Bookmark göstergesi
+          if (isBookmarked)
+            Positioned(
+              top: -1,
+              right: -1,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+// Arapça rakam dönüştürücü
+  String _convertToArabicNumber(int number) {
+    const arabicNumbers = {
+      0: '٠', 1: '١', 2: '٢', 3: '٣', 4: '٤',
+      5: '٥', 6: '٦', 7: '٧', 8: '٨', 9: '٩'
+    };
+
+    return number.toString().split('').map((digit) {
+      return arabicNumbers[int.parse(digit)] ?? digit;
+    }).join('');
   }
 
 // Auto-fit Ayah Layout
@@ -562,36 +726,37 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
 // Ayet genişliğini dinamik hesapla
   double _calculateAyetWidth(AyetModel ayet, double screenWidth) {
-    // Arapça metin uzunluğuna göre tahmini genişlik
     final arabicLength = ayet.arabic.length;
     final provider = Provider.of<KuranProvider>(context, listen: false);
     final hasTranslation = provider.translationGoster && ayet.turkish.isNotEmpty;
 
-    // Base width hesaplaması
     double baseWidth;
 
-    if (arabicLength < 50) {
-      // Kısa ayetler - ekranın 1/3'ü veya 1/2'si
-      baseWidth = screenWidth * (screenWidth > 600 ? 0.3 : 0.45);
-    } else if (arabicLength < 100) {
-      // Orta ayetler - ekranın 1/2'si
-      baseWidth = screenWidth * (screenWidth > 600 ? 0.45 : 0.9);
-    } else if (arabicLength < 200) {
-      // Uzun ayetler - ekranın 2/3'ü
-      baseWidth = screenWidth * (screenWidth > 600 ? 0.6 : 0.9);
+    if (arabicLength < 30) {
+      // Çok kısa ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.25 : 0.4);
+    } else if (arabicLength < 80) {
+      // Kısa ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.35 : 0.55);
+    } else if (arabicLength < 150) {
+      // Orta ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.5 : 0.8);
+    } else if (arabicLength < 250) {
+      // Uzun ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.65 : 0.9);
     } else {
-      // Çok uzun ayetler - tam genişlik
+      // Çok uzun ayetler
       baseWidth = screenWidth * 0.9;
     }
 
-    // Çeviri varsa biraz daha geniş yap
+    // Çeviri varsa biraz daha geniş
     if (hasTranslation) {
-      baseWidth *= 1.1;
+      baseWidth *= 1.15;
     }
 
-    // Min/Max sınırları
-    final minWidth = screenWidth > 600 ? 200.0 : 150.0;
-    final maxWidth = screenWidth - 16; // Padding için
+    // Min/Max sınırları - daha kompakt
+    final minWidth = screenWidth > 600 ? 160.0 : 120.0;
+    final maxWidth = screenWidth - 16;
 
     return baseWidth.clamp(minWidth, maxWidth);
   }
