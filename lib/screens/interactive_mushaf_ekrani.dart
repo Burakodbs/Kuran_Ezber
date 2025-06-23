@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:http/http.dart' as http;
 import '../models/ayet_model.dart';
 import '../providers/kuran_provider.dart';
 import '../models/surah_model.dart';
 import '../widgets/ayet_item.dart';
+import '../utils/audio_manager.dart';
+import '../constants/app_strings.dart';
+import '../constants/app_constants.dart';
 
 class InteractiveMushafEkrani extends StatefulWidget {
   final SurahModel surahModel;
@@ -20,18 +21,14 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   List<AyetModel> _ayetler = [];
   bool _yukleniyor = true;
   String _hata = '';
-  late PageController _pageController;
+  final ScrollController _scrollController = ScrollController(); // PageController yerine ScrollController
   int _aktifAyetIndex = 0;
   bool _sesOynatiliyor = false;
   int? _seciliAyetIndex;
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  bool _isPlaying = false;
-  String? _currentAudioUrl;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
     _sureviYukle();
     Provider.of<KuranProvider>(context, listen: false).loadYerIsaretleri();
   }
@@ -47,174 +44,116 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
       final provider = Provider.of<KuranProvider>(context, listen: false);
       final ayetler = await provider.loadSurahDetails(widget.surahModel.number);
 
-      setState(() {
-        _ayetler = ayetler;
-        _yukleniyor = false;
-      });
+      if (mounted) {
+        setState(() {
+          _ayetler = ayetler;
+          _yukleniyor = false;
+        });
 
-      // Son okunan pozisyonu kontrol et
-      _checkLastReadPosition();
-
+        // Son okunan pozisyonu kontrol et
+        _checkLastReadPosition();
+      }
     } catch (e) {
-      setState(() {
-        _hata = 'Sure yüklenirken hata: ${e.toString()}';
-        _yukleniyor = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hata = _getErrorMessage(e);
+          _yukleniyor = false;
+        });
+      }
+    }
+  }
+
+  /// Hata tipine göre kullanıcı dostu mesaj döndür
+  String _getErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    if (errorString.contains('timeout')) {
+      return AppStrings.timeoutError;
+    } else if (errorString.contains('socket') || errorString.contains('network')) {
+      return AppStrings.networkError;
+    } else if (errorString.contains('404') || errorString.contains('not found')) {
+      return AppStrings.notFoundError;
+    } else if (errorString.contains('500') || errorString.contains('server')) {
+      return AppStrings.serverError;
+    } else {
+      return AppStrings.unexpectedError;
     }
   }
 
   /// Son okunan pozisyonu kontrol et ve o konuma git
   Future<void> _checkLastReadPosition() async {
-    final provider = Provider.of<KuranProvider>(context, listen: false);
-    final lastPosition = await provider.getLastReadPosition();
-
-    if (lastPosition != null &&
-        lastPosition['surahNumber'] == widget.surahModel.number) {
-      final ayahNumber = lastPosition['ayahNumber']!;
-      final index = _ayetler.indexWhere((ayet) => ayet.number == ayahNumber);
-
-      if (index != -1) {
-        setState(() {
-          _aktifAyetIndex = index;
-        });
-
-        // Biraz gecikme ile pozisyona git
-        Future.delayed(Duration(milliseconds: 500), () {
-          if (mounted && _pageController.hasClients) {
-            _pageController.animateToPage(
-              index,
-              duration: Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          }
-        });
-      }
-    }
-  }
-
-  /// Ayet sesini oynat
-  Future<void> _playAyetAudio(AyetModel ayet) async {
     try {
-      // Eğer aynı ses çalınıyorsa durdur
-      if (_isPlaying && _currentAudioUrl == ayet.audioUrl) {
-        await _audioPlayer.stop();
-        setState(() {
-          _isPlaying = false;
-          _currentAudioUrl = null;
-        });
-        return;
-      }
+      final provider = Provider.of<KuranProvider>(context, listen: false);
+      final lastPosition = await provider.getLastReadPosition();
 
-      // Önceki sesi durdur
-      if (_isPlaying) {
-        await _audioPlayer.stop();
-      }
+      if (lastPosition != null &&
+          lastPosition['surahNumber'] == widget.surahModel.number) {
+        final ayahNumber = lastPosition['ayahNumber']!;
+        final index = _ayetler.indexWhere((ayet) => ayet.number == ayahNumber);
 
-      // Çalışan audio URL'sini bul
-      String? workingUrl = ayet.audioUrl;
-
-      // Ana URL çalışmıyorsa alternatif URL'leri dene
-      bool isMainUrlWorking = await _testAudioUrl(ayet.audioUrl);
-      if (!isMainUrlWorking) {
-        workingUrl = await _findWorkingAudioUrl(ayet);
-      }
-
-      if (workingUrl == null) {
-        throw Exception('Hiçbir ses kaynağı bulunamadı');
-      }
-
-      // Yeni sesi başlat
-      await _audioPlayer.play(UrlSource(workingUrl));
-      setState(() {
-        _isPlaying = true;
-        _currentAudioUrl = workingUrl;
-      });
-
-      // Ses bittiğinde state'i güncelle
-      _audioPlayer.onPlayerStateChanged.listen((state) {
-        if (state == PlayerState.completed) {
+        if (index != -1 && mounted) {
           setState(() {
-            _isPlaying = false;
-            _currentAudioUrl = null;
+            _aktifAyetIndex = index;
+          });
+
+          // ScrollController ile pozisyona git
+          Future.delayed(AppConstants.animationDuration, () {
+            if (mounted && _scrollController.hasClients) {
+              // Her ayet item'ın yaklaşık yüksekliği
+              final itemHeight = 200.0; // Tahmini yükseklik
+              final targetOffset = index * itemHeight;
+
+              _scrollController.animateTo(
+                targetOffset,
+                duration: AppConstants.animationDuration,
+                curve: Curves.easeInOut,
+              );
+            }
           });
         }
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ses yüklenemedi: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: 'Alternatif Dene',
-              textColor: Colors.white,
-              onPressed: () => _tryAlternativeAudio(ayet),
-            ),
-          ),
-        );
       }
+    } catch (e) {
+      debugPrint('Last read position error: $e');
     }
   }
 
-  /// Audio URL'sinin çalışıp çalışmadığını test et
-  Future<bool> _testAudioUrl(String url) async {
+  /// Ayet sesini oynat - AudioManager kullan
+  Future<void> _playAyetAudio(AyetModel ayet) async {
     try {
-      final response = await http.head(Uri.parse(url))
-          .timeout(const Duration(seconds: 3));
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
-  }
+      await AudioManager.playAudio(ayet.audioUrl, () {
+        if (mounted) {
+          setState(() {});
+        }
+      });
 
-  /// Çalışan audio URL'sini bul
-  Future<String?> _findWorkingAudioUrl(AyetModel ayet) async {
-    for (final url in ayet.alternativeAudioUrls) {
-      if (await _testAudioUrl(url)) {
-        return url;
+      if (mounted) {
+        setState(() {});
       }
+    } catch (e) {
+      debugPrint('Audio play error: $e');
+      _showErrorSnackBar(AppStrings.audioError);
+      await _tryAlternativeAudio(ayet);
     }
-    return null;
   }
 
-  /// Alternatif audio dene
+  /// Alternatif audio URL'lerini dene
   Future<void> _tryAlternativeAudio(AyetModel ayet) async {
     try {
-      final workingUrl = await _findWorkingAudioUrl(ayet);
+      final workingUrl = await ayet.findWorkingAudioUrl();
       if (workingUrl != null) {
-        await _audioPlayer.play(UrlSource(workingUrl));
-        setState(() {
-          _isPlaying = true;
-          _currentAudioUrl = workingUrl;
+        await AudioManager.playAudio(workingUrl, () {
+          if (mounted) {
+            setState(() {});
+          }
         });
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Alternatif ses kaynağı bulundu'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        _showSuccessSnackBar('Alternatif ses kaynağı bulundu');
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Hiçbir ses kaynağı çalışmıyor'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
+        _showErrorSnackBar('Hiçbir ses kaynağı çalışmıyor');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Alternatif ses de yüklenemedi'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('Alternative audio error: $e');
+      _showErrorSnackBar('Alternatif ses de yüklenemedi');
     }
   }
 
@@ -226,42 +165,72 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
       setState(() => _sesOynatiliyor = !_sesOynatiliyor);
 
       if (_sesOynatiliyor) {
-        // İlk ayetten başla veya kaldığı yerden devam et
         for (int i = _aktifAyetIndex; i < _ayetler.length && _sesOynatiliyor; i++) {
+          if (!mounted) break;
+
           setState(() => _aktifAyetIndex = i);
 
-          // Sayfayı ayet pozisyonuna kaydır
-          if (_pageController.hasClients) {
-            await _pageController.animateToPage(
-              i,
-              duration: Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          }
+          // Scroll ile ayete git
+          _scrollToAyah(i);
 
-          // Ayeti oynat ve bitmesini bekle
           await _playAyetAudio(_ayetler[i]);
 
-          // Ses bitene kadar bekle
-          while (_isPlaying && _sesOynatiliyor) {
-            await Future.delayed(Duration(milliseconds: 100));
+          while (AudioManager.isPlaying && _sesOynatiliyor && mounted) {
+            await Future.delayed(const Duration(milliseconds: 100));
           }
 
-          // Ayetler arası kısa bekleme
-          if (_sesOynatiliyor) {
-            await Future.delayed(Duration(milliseconds: 500));
+          if (_sesOynatiliyor && mounted) {
+            await Future.delayed(const Duration(milliseconds: 500));
           }
         }
 
-        setState(() => _sesOynatiliyor = false);
+        if (mounted) {
+          setState(() => _sesOynatiliyor = false);
+        }
+      } else {
+        await AudioManager.stopAudio();
       }
     } catch (e) {
-      setState(() => _sesOynatiliyor = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ses oynatma hatası: $e')),
-        );
+        setState(() => _sesOynatiliyor = false);
+        _showErrorSnackBar('Ses oynatma hatası: $e');
       }
+    }
+  }
+
+  /// Belirli bir ayete scroll yap
+  void _scrollToAyah(int index) {
+    if (_scrollController.hasClients && index < _ayetler.length) {
+      final itemHeight = 200.0; // Tahmini item yüksekliği
+      final targetOffset = index * itemHeight;
+
+      _scrollController.animateTo(
+        targetOffset,
+        duration: AppConstants.animationDuration,
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  /// Bir sonraki ayete git
+  void _nextAyah() {
+    if (_aktifAyetIndex < _ayetler.length - 1) {
+      setState(() {
+        _aktifAyetIndex++;
+      });
+      _scrollToAyah(_aktifAyetIndex);
+      _saveReadingPosition(_aktifAyetIndex);
+    }
+  }
+
+  /// Bir önceki ayete git
+  void _previousAyah() {
+    if (_aktifAyetIndex > 0) {
+      setState(() {
+        _aktifAyetIndex--;
+      });
+      _scrollToAyah(_aktifAyetIndex);
+      _saveReadingPosition(_aktifAyetIndex);
     }
   }
 
@@ -271,15 +240,48 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
       final provider = Provider.of<KuranProvider>(context, listen: false);
       provider.saveLastReadPosition(
           widget.surahModel.number,
-          _ayetler[ayahIndex].number
+          _ayetler[ayahIndex].number // Sure içindeki ayet numarası
+      );
+    }
+  }
+
+  /// Başarı mesajı göster
+  void _showSuccessSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  /// Hata mesajı göster
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: AppStrings.retry,
+            textColor: Colors.white,
+            onPressed: () => _sureviYukle(),
+          ),
+        ),
       );
     }
   }
 
   @override
   void dispose() {
-    _audioPlayer.dispose();
-    _pageController.dispose();
+    AudioManager.stopAudio();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -290,6 +292,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,8 +300,8 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           children: [
             Text('${widget.surahModel.number}. ${widget.surahModel.englishName}'),
             Text(
-              '${widget.surahModel.englishNameTranslation} • ${widget.surahModel.numberOfAyahs} Ayet',
-              style: TextStyle(
+              '${widget.surahModel.englishNameTranslation} • ${widget.surahModel.numberOfAyahs} ${AppStrings.ayah}',
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
                 color: Colors.white70,
@@ -312,12 +315,12 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 ? Icons.translate
                 : Icons.translate_outlined),
             onPressed: provider.toggleTranslation,
-            tooltip: 'Çeviriyi Göster/Gizle',
+            tooltip: AppStrings.tooltipTranslation,
           ),
           IconButton(
-            icon: Icon(Icons.bookmark_border),
+            icon: const Icon(Icons.bookmark_border),
             onPressed: () => _showBookmarkedAyahs(),
-            tooltip: 'Yer İşaretleri',
+            tooltip: AppStrings.bookmarks,
           ),
           PopupMenuButton<String>(
             onSelected: (value) async {
@@ -338,9 +341,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 value: 'jump_to_ayah',
                 child: Row(
                   children: [
-                    Icon(Icons.search),
-                    SizedBox(width: 8),
-                    Text('Ayete Git'),
+                    const Icon(Icons.search),
+                    const SizedBox(width: 8),
+                    Text(AppStrings.goToAyah),
                   ],
                 ),
               ),
@@ -348,9 +351,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 value: 'last_read',
                 child: Row(
                   children: [
-                    Icon(Icons.bookmark),
-                    SizedBox(width: 8),
-                    Text('Son Okuduğuma Git'),
+                    const Icon(Icons.bookmark),
+                    const SizedBox(width: 8),
+                    Text(AppStrings.goToLastRead),
                   ],
                 ),
               ),
@@ -358,9 +361,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 value: 'settings',
                 child: Row(
                   children: [
-                    Icon(Icons.settings),
-                    SizedBox(width: 8),
-                    Text('Ayarlar'),
+                    const Icon(Icons.settings),
+                    const SizedBox(width: 8),
+                    Text(AppStrings.settings),
                   ],
                 ),
               ),
@@ -368,83 +371,79 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Kontrol paneli
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              border: Border(
-                bottom: BorderSide(color: theme.dividerColor),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _ayetler.isNotEmpty && _aktifAyetIndex < _ayetler.length
-                      ? 'Ayet ${_ayetler[_aktifAyetIndex].number}/${widget.surahModel.numberOfAyahs}'
-                      : 'Ayet 1/${widget.surahModel.numberOfAyahs}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: theme.primaryColor,
+      body: SafeArea(
+        child: Directionality(
+          textDirection: TextDirection.rtl, // Tüm body RTL
+          child: Column(
+            children: [
+              // Kontrol paneli
+              Directionality(
+                textDirection: TextDirection.ltr, // Kontroller LTR kalsın
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    border: Border(
+                      bottom: BorderSide(color: theme.dividerColor),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _ayetler.isNotEmpty && _aktifAyetIndex < _ayetler.length
+                              ? '${AppStrings.ayah} ${_ayetler[_aktifAyetIndex].number}/${widget.surahModel.numberOfAyahs}'
+                              : '${AppStrings.ayah} 1/${widget.surahModel.numberOfAyahs}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: theme.primaryColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.skip_previous, color: theme.primaryColor),
+                            onPressed: _aktifAyetIndex > 0 ? _previousAyah : null,
+                            tooltip: AppStrings.previous,
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              _sesOynatiliyor ? Icons.pause : Icons.play_arrow,
+                              color: theme.primaryColor,
+                            ),
+                            onPressed: _playFullSurah,
+                            tooltip: _sesOynatiliyor ? AppStrings.pause : AppStrings.playSurah,
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.skip_next, color: theme.primaryColor),
+                            onPressed: _aktifAyetIndex < _ayetler.length - 1 ? _nextAyah : null,
+                            tooltip: AppStrings.next,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.skip_previous, color: theme.primaryColor),
-                      onPressed: _aktifAyetIndex > 0
-                          ? () {
-                        final newIndex = _aktifAyetIndex - 1;
-                        _pageController.animateToPage(
-                          newIndex,
-                          duration: Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                          : null,
-                      tooltip: 'Önceki Ayet',
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        _sesOynatiliyor ? Icons.pause : Icons.play_arrow,
-                        color: theme.primaryColor,
-                      ),
-                      onPressed: _playFullSurah,
-                      tooltip: _sesOynatiliyor ? 'Durdur' : 'Sureyi Oynat',
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.skip_next, color: theme.primaryColor),
-                      onPressed: _aktifAyetIndex < _ayetler.length - 1
-                          ? () {
-                        final newIndex = _aktifAyetIndex + 1;
-                        _pageController.animateToPage(
-                          newIndex,
-                          duration: Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                          : null,
-                      tooltip: 'Sonraki Ayet',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              ),
 
-          // Ana içerik
-          Expanded(
-            child: _buildMainContent(theme),
+              // Ana içerik - RTL
+              Expanded(
+                child: _buildMainContent(theme),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
+
+// _buildMainContent metodunu değiştir:
 
   Widget _buildMainContent(ThemeData theme) {
     if (_yukleniyor) {
@@ -453,8 +452,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(color: theme.primaryColor),
-            SizedBox(height: 16),
-            Text('Sure yükleniyor...', style: TextStyle(color: theme.primaryColor)),
+            const SizedBox(height: 16),
+            Text(
+              AppStrings.loadingAyahs,
+              style: TextStyle(color: theme.primaryColor),
+            ),
           ],
         ),
       );
@@ -465,13 +467,20 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red),
-            SizedBox(height: 16),
-            Text(_hata, textAlign: TextAlign.center),
-            SizedBox(height: 20),
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                _hata,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _sureviYukle,
-              child: Text('Tekrar Dene'),
+              child: Text(AppStrings.retry),
             ),
           ],
         ),
@@ -483,39 +492,396 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.book_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Bu surede ayet bulunamadı'),
+            const Icon(Icons.book_outlined, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(AppStrings.noDataAvailable),
           ],
         ),
       );
     }
 
-    return PageView.builder(
-      controller: _pageController,
-      onPageChanged: (index) {
-        setState(() => _aktifAyetIndex = index);
-        _saveReadingPosition(index);
-      },
-      itemCount: _ayetler.length,
-      itemBuilder: (context, index) {
-        final ayet = _ayetler[index];
-        final isSelected = _seciliAyetIndex == index;
-        final isCurrentAudio = _currentAudioUrl == ayet.audioUrl && _isPlaying;
+    // Mushaf Style Layout
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: _buildMushafLayout(theme),
+      ),
+    );
+  }
 
-        return Padding(
-          padding: EdgeInsets.all(16),
-          child: AyetItem(
+// Mushaf layout builder
+  Widget _buildMushafLayout(ThemeData theme) {
+    final provider = Provider.of<KuranProvider>(context, listen: false);
+    List<Widget> wordWidgets = [];
+
+    for (int ayetIndex = 0; ayetIndex < _ayetler.length; ayetIndex++) {
+      final ayet = _ayetler[ayetIndex];
+      final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
+      final isSelected = _seciliAyetIndex == ayetIndex;
+
+      // Ayeti kelimelere böl
+      final words = ayet.arabic.split(' ').where((word) => word.isNotEmpty).toList();
+
+      // Her kelimeyi widget'a çevir
+      for (int wordIndex = 0; wordIndex < words.length; wordIndex++) {
+        final word = words[wordIndex];
+        final isLastWord = wordIndex == words.length - 1;
+
+        wordWidgets.add(
+          _buildWordWidget(
+            word: word,
             ayet: ayet,
+            ayetIndex: ayetIndex,
+            isLastWord: isLastWord,
             isPlaying: isCurrentAudio,
             isSelected: isSelected,
-            onTap: () => setState(() {
-              _seciliAyetIndex = isSelected ? null : index;
-            }),
-            onPlayPressed: () => _playAyetAudio(ayet),
+            provider: provider,
+            theme: theme,
           ),
         );
+      }
+    }
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 8,
+      textDirection: TextDirection.rtl,
+      alignment: WrapAlignment.start,
+      runAlignment: WrapAlignment.start,
+      children: wordWidgets,
+    );
+  }
+
+// Kelime widget'ı
+  Widget _buildWordWidget({
+    required String word,
+    required AyetModel ayet,
+    required int ayetIndex,
+    required bool isLastWord,
+    required bool isPlaying,
+    required bool isSelected,
+    required KuranProvider provider,
+    required ThemeData theme,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _seciliAyetIndex = isSelected ? null : ayetIndex;
+          _aktifAyetIndex = ayetIndex;
+        });
+        _saveReadingPosition(ayetIndex);
       },
+      onLongPress: () => _playAyetAudio(ayet),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.primaryColor.withOpacity(0.1)
+              : isPlaying
+              ? Colors.green.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Kelime
+            Text(
+              word,
+              style: TextStyle(
+                fontSize: provider.arabicFontSize,
+                height: 1.8,
+                color: isPlaying
+                    ? Colors.green.shade700
+                    : theme.textTheme.bodyLarge?.color ?? Colors.white,
+                fontWeight: isPlaying ? FontWeight.w600 : FontWeight.w400,
+                fontFamily: 'UthmanicHafs',
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+
+            // Ayet numarası (son kelimeyse)
+            if (isLastWord) ...[
+              const SizedBox(width: 4),
+              _buildMushafAyahNumber(ayet, isPlaying, provider),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+// Mushaf tarzı ayet numarası
+  Widget _buildMushafAyahNumber(AyetModel ayet, bool isPlaying, KuranProvider provider) {
+    final isBookmarked = provider.isBookmarked(ayet.bookmarkKey);
+
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isPlaying
+            ? Colors.green.withOpacity(0.2)
+            : const Color(0xFF9C27B0).withOpacity(0.8), // Mor renk
+        border: Border.all(
+          color: isPlaying
+              ? Colors.green
+              : const Color(0xFF9C27B0),
+          width: 1.5,
+        ),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Ayet numarası
+          Text(
+            _convertToArabicNumber(ayet.number),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontFamily: 'UthmanicHafs',
+            ),
+          ),
+
+          // Bookmark göstergesi
+          if (isBookmarked)
+            Positioned(
+              top: -1,
+              right: -1,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+// Arapça rakam dönüştürücü
+  String _convertToArabicNumber(int number) {
+    const arabicNumbers = {
+      0: '٠', 1: '١', 2: '٢', 3: '٣', 4: '٤',
+      5: '٥', 6: '٦', 7: '٧', 8: '٨', 9: '٩'
+    };
+
+    return number.toString().split('').map((digit) {
+      return arabicNumbers[int.parse(digit)] ?? digit;
+    }).join('');
+  }
+
+// Auto-fit Ayah Layout
+  Widget _buildAutoFitAyahLayout(double screenWidth) {
+    return Directionality(
+      textDirection: TextDirection.rtl, // Sağdan sola düzen
+      child: Wrap(
+        spacing: 8, // Yatay boşluk
+        runSpacing: 8, // Dikey boşluk
+        alignment: WrapAlignment.start, // RTL'de start = sağdan başla
+        runAlignment: WrapAlignment.start,
+        textDirection: TextDirection.rtl, // Wrap için de RTL
+        children: _ayetler.asMap().entries.map((entry) {
+          final index = entry.key;
+          final ayet = entry.value;
+
+          return _buildDynamicAyetWidget(ayet, index, screenWidth);
+        }).toList(),
+      ),
+    );
+  }
+
+// Dinamik boyutlu ayet widget'ı
+  Widget _buildDynamicAyetWidget(AyetModel ayet, int index, double screenWidth) {
+    final isSelected = _seciliAyetIndex == index;
+    final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
+
+    // Dinamik genişlik hesapla
+    final ayetWidth = _calculateAyetWidth(ayet, screenWidth);
+
+    return Container(
+      width: ayetWidth,
+      child: AyetItem(
+        ayet: ayet,
+        isPlaying: isCurrentAudio,
+        isSelected: isSelected,
+        onTap: () {
+          setState(() {
+            _seciliAyetIndex = isSelected ? null : index;
+            _aktifAyetIndex = index;
+          });
+          _saveReadingPosition(index);
+        },
+        onPlayPressed: () => _playAyetAudio(ayet),
+      ),
+    );
+  }
+
+// Ayet genişliğini dinamik hesapla
+  double _calculateAyetWidth(AyetModel ayet, double screenWidth) {
+    final arabicLength = ayet.arabic.length;
+    final provider = Provider.of<KuranProvider>(context, listen: false);
+    final hasTranslation = provider.translationGoster && ayet.turkish.isNotEmpty;
+
+    double baseWidth;
+
+    if (arabicLength < 30) {
+      // Çok kısa ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.25 : 0.4);
+    } else if (arabicLength < 80) {
+      // Kısa ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.35 : 0.55);
+    } else if (arabicLength < 150) {
+      // Orta ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.5 : 0.8);
+    } else if (arabicLength < 250) {
+      // Uzun ayetler
+      baseWidth = screenWidth * (screenWidth > 600 ? 0.65 : 0.9);
+    } else {
+      // Çok uzun ayetler
+      baseWidth = screenWidth * 0.9;
+    }
+
+    // Çeviri varsa biraz daha geniş
+    if (hasTranslation) {
+      baseWidth *= 1.15;
+    }
+
+    // Min/Max sınırları - daha kompakt
+    final minWidth = screenWidth > 600 ? 160.0 : 120.0;
+    final maxWidth = screenWidth - 16;
+
+    return baseWidth.clamp(minWidth, maxWidth);
+  }
+
+// Ekran genişliğine göre kolon sayısını hesapla
+  int _calculateCrossAxisCount(double screenWidth) {
+    if (screenWidth > 1200) return 3; // Desktop - 3 kolon
+    if (screenWidth > 800) return 2;  // Tablet - 2 kolon
+    if (screenWidth > 600) return 2;  // Büyük telefon - 2 kolon
+    return 1; // Küçük telefon - 1 kolon
+  }
+
+// Staggered rows oluştur
+  List<Widget> _buildStaggeredRows(int crossAxisCount) {
+    if (crossAxisCount == 1) {
+      // Tek kolon - normal ListView
+      return _ayetler.asMap().entries.map((entry) {
+        final index = entry.key;
+        final ayet = entry.value;
+        return _buildAyetWidget(ayet, index);
+      }).toList();
+    }
+
+    List<Widget> rows = [];
+    List<List<int>> columns = List.generate(crossAxisCount, (index) => []);
+    List<double> columnHeights = List.filled(crossAxisCount, 0.0);
+
+    // Ayetleri kolonlara dağıt (en kısa kolona ekle)
+    for (int i = 0; i < _ayetler.length; i++) {
+      final shortestColumnIndex = _getShortestColumnIndex(columnHeights);
+      columns[shortestColumnIndex].add(i);
+
+      // Tahmini yükseklik hesapla (ayet uzunluğuna göre)
+      final estimatedHeight = _estimateAyahHeight(_ayetler[i]);
+      columnHeights[shortestColumnIndex] += estimatedHeight;
+    }
+
+    // En uzun kolonun uzunluğu kadar satır oluştur
+    final maxRowCount = columns.map((col) => col.length).reduce((a, b) => a > b ? a : b);
+
+    for (int rowIndex = 0; rowIndex < maxRowCount; rowIndex++) {
+      rows.add(_buildStaggeredRow(columns, rowIndex, crossAxisCount));
+    }
+
+    return rows;
+  }
+
+// En kısa kolonu bul
+  int _getShortestColumnIndex(List<double> heights) {
+    double minHeight = heights[0];
+    int minIndex = 0;
+
+    for (int i = 1; i < heights.length; i++) {
+      if (heights[i] < minHeight) {
+        minHeight = heights[i];
+        minIndex = i;
+      }
+    }
+
+    return minIndex;
+  }
+
+// Ayet yüksekliğini tahmin et
+  double _estimateAyahHeight(AyetModel ayet) {
+    const baseHeight = 80.0; // Minimum yükseklik
+    const arabicCharHeight = 2.0; // Arapça karakter başına yükseklik
+    const turkishCharHeight = 1.0; // Türkçe karakter başına yükseklik
+
+    double height = baseHeight;
+    height += ayet.arabic.length * arabicCharHeight;
+
+    final provider = Provider.of<KuranProvider>(context, listen: false);
+    if (provider.translationGoster && ayet.turkish.isNotEmpty) {
+      height += ayet.turkish.length * turkishCharHeight;
+    }
+
+    return height.clamp(80.0, 300.0); // Min 80, Max 300
+  }
+
+// Staggered row oluştur
+  Widget _buildStaggeredRow(List<List<int>> columns, int rowIndex, int crossAxisCount) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(crossAxisCount, (columnIndex) {
+          if (rowIndex < columns[columnIndex].length) {
+            final ayetIndex = columns[columnIndex][rowIndex];
+            final ayet = _ayetler[ayetIndex];
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: columnIndex > 0 ? 4 : 0,
+                  right: columnIndex < crossAxisCount - 1 ? 4 : 0,
+                ),
+                child: _buildAyetWidget(ayet, ayetIndex),
+              ),
+            );
+          } else {
+            // Boş alan
+            return Expanded(child: Container());
+          }
+        }),
+      ),
+    );
+  }
+
+// Ayet widget'ını oluştur
+  Widget _buildAyetWidget(AyetModel ayet, int index) {
+    final isSelected = _seciliAyetIndex == index;
+    final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
+
+    return AyetItem(
+      ayet: ayet,
+      isPlaying: isCurrentAudio,
+      isSelected: isSelected,
+      onTap: () {
+        setState(() {
+          _seciliAyetIndex = isSelected ? null : index;
+          _aktifAyetIndex = index;
+        });
+        _saveReadingPosition(index);
+      },
+      onPlayPressed: () => _playAyetAudio(ayet),
     );
   }
 
@@ -527,28 +893,30 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Yer İşaretli Ayetler', style: Theme.of(context).textTheme.headlineSmall),
-            SizedBox(height: 16),
+            Text(
+              AppStrings.bookmarks,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
             if (bookmarkedKeys.isEmpty)
-              Text('Bu surede yer işaretli ayet yok')
+              Text(AppStrings.noBookmarks)
             else
               ...bookmarkedKeys.map((key) {
                 final ayahNumber = int.parse(key.split('_')[1]);
                 return ListTile(
-                  title: Text('Ayet $ayahNumber'),
+                  title: Text('${AppStrings.ayah} $ayahNumber'),
                   onTap: () {
                     Navigator.pop(context);
                     final index = _ayetler.indexWhere((a) => a.number == ayahNumber);
                     if (index != -1) {
-                      _pageController.animateToPage(
-                        index,
-                        duration: Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
+                      setState(() {
+                        _aktifAyetIndex = index;
+                      });
+                      _scrollToAyah(index);
                     }
                   },
                 );
@@ -566,19 +934,19 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Ayete Git'),
+        title: Text(AppStrings.goToAyah),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
-            labelText: 'Ayet Numarası (1-${widget.surahModel.numberOfAyahs})',
-            border: OutlineInputBorder(),
+            labelText: '${AppStrings.ayahNumber} (1-${widget.surahModel.numberOfAyahs})',
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('İptal'),
+            child: Text(AppStrings.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -589,15 +957,14 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 Navigator.pop(context);
                 final index = _ayetler.indexWhere((a) => a.number == ayahNumber);
                 if (index != -1) {
-                  _pageController.animateToPage(
-                    index,
-                    duration: Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
+                  setState(() {
+                    _aktifAyetIndex = index;
+                  });
+                  _scrollToAyah(index);
                 }
               }
             },
-            child: Text('Git'),
+            child: Text(AppStrings.ok),
           ),
         ],
       ),
@@ -609,22 +976,22 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Okuma Ayarları'),
+        title: Text(AppStrings.settings),
         content: Consumer<KuranProvider>(
           builder: (context, provider, child) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               SwitchListTile(
-                title: Text('Çeviriyi Göster'),
+                title: Text(AppStrings.showTranslation),
                 value: provider.translationGoster,
                 onChanged: (_) => provider.toggleTranslation(),
               ),
               ListTile(
-                title: Text('Arapça Font Boyutu'),
+                title: Text(AppStrings.arabicFontSize),
                 subtitle: Slider(
                   value: provider.arabicFontSize,
-                  min: 16.0,
-                  max: 32.0,
+                  min: AppConstants.minFontSize,
+                  max: AppConstants.maxFontSize,
                   divisions: 8,
                   label: provider.arabicFontSize.round().toString(),
                   onChanged: provider.setArabicFontSize,
@@ -636,7 +1003,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Tamam'),
+            child: Text(AppStrings.ok),
           ),
         ],
       ),
