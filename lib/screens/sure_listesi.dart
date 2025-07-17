@@ -458,10 +458,28 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
               color: Colors.red,
             ),
             const SizedBox(height: 16),
-            Text(
-              provider.hata,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    provider.hata,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
             Row(
@@ -478,7 +496,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
                 if (!provider.isOnline) ...[
                   const SizedBox(width: 12),
                   OutlinedButton(
-                    onPressed: () => provider.clearCache(),
+                    onPressed: () => provider.clearCacheAndReload(),
                     child: Text(AppStrings.clearCache),
                   ),
                 ],
