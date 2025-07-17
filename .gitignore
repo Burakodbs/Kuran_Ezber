@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+.dart_tool
+.claude

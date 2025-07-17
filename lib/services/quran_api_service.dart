@@ -85,7 +85,10 @@ class QuranApiService {
       final arabicAyahs = arabicEdition['ayahs'] as List;
       final turkishAyahs = turkishEdition?['ayahs'] as List?;
 
-      return arabicAyahs.map((arabicAyah) {
+      return arabicAyahs.asMap().entries.map((entry) {
+        final index = entry.key;
+        final arabicAyah = entry.value;
+        
         // Eşleşen Türkçe ayeti bul
         Map<String, dynamic>? matchingTurkish;
         if (turkishAyahs != null) {
@@ -104,10 +107,11 @@ class QuranApiService {
           matchingAudio = audioMatches.isNotEmpty ? audioMatches.first : null;
         }
 
-        return AyetModel.fromAlQuranCloudJson(
+        return AyetModel.fromAlQuranCloudJsonWithIndex(
             arabicAyah,
             matchingTurkish,
-            matchingAudio
+            matchingAudio,
+            index + 1 // Sure içindeki ayet numarası (1'den başlar)
         );
       }).toList();
     } catch (e) {
@@ -184,7 +188,10 @@ class QuranApiService {
           }).toList();
 
           return MushafPageModel(
-            ayahs: pageAyahs.map((arabicAyah) {
+            ayahs: pageAyahs.asMap().entries.map((entry) {
+              final index = entry.key;
+              final arabicAyah = entry.value;
+              
               Map<String, dynamic>? matchingTurkish;
               if (turkishAyahs != null) {
                 final turkishMatches = turkishAyahs.where(
@@ -195,7 +202,28 @@ class QuranApiService {
                 matchingTurkish = turkishMatches.isNotEmpty ? turkishMatches.first : null;
               }
 
-              return AyetModel.fromAlQuranCloudJson(arabicAyah, matchingTurkish, null);
+              // Sayfa içindeki ayetlerde sure içindeki pozisyonu bul
+              final surahNumber = arabicAyah['surah']['number'];
+              final globalAyahNumber = arabicAyah['number'];
+              
+              // Sure başlangıç pozisyonunu hesapla
+              int surahSpecificNumber = 1;
+              if (surahNumber > 1) {
+                int previousAyahs = 0;
+                for (int i = 1; i < surahNumber; i++) {
+                  previousAyahs += _getSurahAyahCount(i);
+                }
+                surahSpecificNumber = globalAyahNumber - previousAyahs;
+              } else {
+                surahSpecificNumber = globalAyahNumber;
+              }
+
+              return AyetModel.fromAlQuranCloudJsonWithIndex(
+                arabicAyah, 
+                matchingTurkish, 
+                null,
+                surahSpecificNumber
+              );
             }).toList(),
             pageNumber: pageNumber,
           );

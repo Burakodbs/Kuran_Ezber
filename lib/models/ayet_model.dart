@@ -1,7 +1,7 @@
 import 'package:http/http.dart' as http;
 
 class AyetModel {
-  final int number;
+  final int number; // Sure içindeki ayet numarası (1'den başlar)
   final int surahNumber;
   final String arabic;
   final String turkish;
@@ -24,7 +24,7 @@ class AyetModel {
   // Bookmark key için yardımcı getter
   String get bookmarkKey => '${surahNumber}_$number';
 
-  // AlQuran.cloud API için factory constructor
+  // AlQuran.cloud API için factory constructor (geri uyumluluk için)
   factory AyetModel.fromAlQuranCloudJson(
       Map<String, dynamic> arabicJson,
       Map<String, dynamic>? turkishJson,
@@ -52,6 +52,44 @@ class AyetModel {
 
     return AyetModel(
       number: ayahNumber,
+      surahNumber: surahNumber,
+      arabic: arabicJson['text'] ?? '',
+      turkish: turkishJson?['text'] ?? '',
+      pageNumber: arabicJson['page'] ?? 1,
+      juzNumber: arabicJson['juz'] ?? 1,
+      globalNumber: globalNumber,
+      audioUrl: audioUrl,
+    );
+  }
+
+  // AlQuran.cloud API için factory constructor (per-surah numbering ile)
+  factory AyetModel.fromAlQuranCloudJsonWithIndex(
+      Map<String, dynamic> arabicJson,
+      Map<String, dynamic>? turkishJson,
+      Map<String, dynamic>? audioJson,
+      int surahSpecificNumber
+      ) {
+    final surahNumber = arabicJson['surah']?['number'] ?? 1;
+    final globalNumber = arabicJson['numberInQuran'] ?? arabicJson['number'] ?? 1;
+
+    // Audio URL'sini al
+    String audioUrl = '';
+    if (audioJson != null) {
+      // API'den gelen audio URL'sini kullan
+      if (audioJson['audioSecondary'] != null && audioJson['audioSecondary'].isNotEmpty) {
+        audioUrl = audioJson['audioSecondary'][0];
+      } else if (audioJson['audio'] != null) {
+        audioUrl = audioJson['audio'];
+      }
+    }
+
+    // Eğer audio URL yoksa, global number ile oluştur
+    if (audioUrl.isEmpty) {
+      audioUrl = 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalNumber.mp3';
+    }
+
+    return AyetModel(
+      number: surahSpecificNumber, // Sure içindeki ayet numarası (1'den başlar)
       surahNumber: surahNumber,
       arabic: arabicJson['text'] ?? '',
       turkish: turkishJson?['text'] ?? '',
