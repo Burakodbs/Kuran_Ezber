@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import '../models/surah_model.dart';
 import '../models/ayet_model.dart';
 import '../services/quran_api_service.dart';
@@ -99,12 +100,50 @@ class KuranProvider with ChangeNotifier {
   /// İnternet bağlantısını kontrol et
   Future<bool> _checkInternetConnection() async {
     try {
-      final result = await InternetAddress.lookup('google.com')
-          .timeout(const Duration(seconds: 5));
-      _isOnline = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-      return _isOnline;
-    } catch (e) {
+      // Önce HTTP tabanlı kontrol yap
+      final httpConnected = await _checkHttpConnection();
+      if (httpConnected) {
+        _isOnline = true;
+        return true;
+      }
+      
+      // HTTP başarısızsa DNS lookup dene
+      final hosts = ['8.8.8.8', 'google.com', 'cloudflare.com'];
+      
+      for (final host in hosts) {
+        try {
+          final result = await InternetAddress.lookup(host)
+              .timeout(const Duration(seconds: 3));
+          if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+            _isOnline = true;
+            return true;
+          }
+        } catch (e) {
+          debugPrint('DNS lookup failed for $host: $e');
+          continue;
+        }
+      }
+      
       _isOnline = false;
+      return false;
+    } catch (e) {
+      debugPrint('Internet connection check failed: $e');
+      _isOnline = false;
+      return false;
+    }
+  }
+
+  /// HTTP tabanlı bağlantı kontrolü
+  Future<bool> _checkHttpConnection() async {
+    try {
+      final response = await http.head(
+        Uri.parse('https://api.alquran.cloud/v1/meta'),
+        headers: {'User-Agent': 'KuranEzber/1.0'},
+      ).timeout(const Duration(seconds: 5));
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('HTTP connection check failed: $e');
       return false;
     }
   }
@@ -112,6 +151,10 @@ class KuranProvider with ChangeNotifier {
   /// Hata tipine göre kullanıcı dostu mesaj döndür
   String _getErrorMessage(dynamic error) {
     final errorString = error.toString().toLowerCase();
+    
+    // Debug için tam hata mesajını yazdır
+    debugPrint('Error occurred: $error');
+    debugPrint('Error string: $errorString');
 
     if (errorString.contains('timeout')) {
       return AppStrings.timeoutError;
@@ -126,8 +169,33 @@ class KuranProvider with ChangeNotifier {
         errorString.contains('502') ||
         errorString.contains('503')) {
       return AppStrings.serverError;
+    } else if (errorString.contains('format') ||
+        errorString.contains('json') ||
+        errorString.contains('parsing')) {
+      return 'Veri formatı hatası. Lütfen tekrar deneyin.';
+    } else if (errorString.contains('certificate') ||
+        errorString.contains('handshake') ||
+        errorString.contains('ssl') ||
+        errorString.contains('tls')) {
+      return 'Güvenlik sertifikası hatası. İnternet bağlantınızı kontrol edin.';
+    } else if (errorString.contains('cache') ||
+        errorString.contains('storage') ||
+        errorString.contains('database')) {
+      return 'Önbellek hatası. Lütfen cache\'i temizleyin.';
+    } else if (errorString.contains('permission') ||
+        errorString.contains('access denied')) {
+      return 'Erişim izni hatası. Uygulama ayarlarını kontrol edin.';
+    } else if (errorString.contains('host') ||
+        errorString.contains('dns') ||
+        errorString.contains('resolve')) {
+      return 'Sunucu adresine ulaşılamıyor. DNS ayarlarınızı kontrol edin.';
+    } else if (errorString.contains('interrupted') ||
+        errorString.contains('cancelled')) {
+      return 'İşlem iptal edildi. Lütfen tekrar deneyin.';
     } else {
-      return AppStrings.unexpectedError;
+      // Beklenmeyen hata durumunda daha ayrıntılı bilgi ver
+      debugPrint('Unexpected error pattern: $errorString');
+      return '${AppStrings.unexpectedError}\nHata: ${error.toString().length > 100 ? '${error.toString().substring(0, 100)}...' : error.toString()}';
     }
   }
 
@@ -151,10 +219,14 @@ class KuranProvider with ChangeNotifier {
         return;
       }
 
-      // İnternet bağlantısını kontrol et
+      // Cache boşsa, internet bağlantısını kontrol et
       final hasConnection = await _checkInternetConnection();
       if (!hasConnection) {
-        throw Exception(AppStrings.networkError);
+        // İnternet yoksa ve cache de boşsa, offline mesajı göster
+        _hata = '${AppStrings.networkError}\n\nÖnce internet bağlantısı ile uygulamayı açmanız gerekiyor.';
+        _yukleniyor = false;
+        notifyListeners();
+        return;
       }
 
       // API'den fresh veri çek
@@ -263,6 +335,21 @@ class KuranProvider with ChangeNotifier {
       debugPrint('Cache load error: $e');
     }
     return [];
+  }
+
+  /// Cache'i güvenli bir şekilde temizle
+  Future<void> clearCacheAndReload() async {
+    try {
+      await StorageHelper.clearCache();
+      _sureler = [];
+      _hata = '';
+      notifyListeners();
+      await sureleriYukle();
+    } catch (e) {
+      debugPrint('Cache clear error: $e');
+      _hata = 'Cache temizleme hatası: ${_getErrorMessage(e)}';
+      notifyListeners();
+    }
   }
 
   /// Yer işareti ekle/çıkar

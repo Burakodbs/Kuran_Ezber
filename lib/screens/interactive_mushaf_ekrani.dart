@@ -96,16 +96,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             _aktifAyetIndex = index;
           });
 
-          Future.delayed(AppConstants.animationDuration, () {
+          Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted && _scrollController.hasClients) {
-              final itemHeight = 200.0;
-              final targetOffset = index * itemHeight;
-
-              _scrollController.animateTo(
-                targetOffset,
-                duration: AppConstants.animationDuration,
-                curve: Curves.easeInOut,
-              );
+              _scrollToAyah(index);
             }
           });
         }
@@ -196,13 +189,15 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   /// Belirli bir ayete scroll yap
   void _scrollToAyah(int index) {
     if (_scrollController.hasClients && index < _ayetler.length) {
-      final itemHeight = 200.0;
-      final targetOffset = index * itemHeight;
+      // Dinamik yükseklik hesaplama yerine tahmini yükseklik kullan
+      final estimatedItemHeight = 150.0; // Daha gerçekçi tahmin
+      final bismillahHeight = widget.surahModel.number != 9 ? 200.0 : 0.0;
+      final targetOffset = bismillahHeight + (index * estimatedItemHeight);
 
       _scrollController.animateTo(
         targetOffset,
-        duration: AppConstants.animationDuration,
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 300), // Sabit süre daha performanslı
+        curve: Curves.easeOutCubic,
       );
     }
   }
@@ -574,41 +569,55 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: SingleChildScrollView(
+      child: CustomScrollView(
         controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Bismillah - Tevbe suresi hariç
-            if (widget.surahModel.number != 9) _buildBismillah(),
+        physics: const ClampingScrollPhysics(),
+        cacheExtent: 100.0,
+        slivers: [
+          // Bismillah - Tevbe suresi hariç
+          if (widget.surahModel.number != 9)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: _buildBismillah(),
+              ),
+            ),
 
-            // Ayetler
-            ..._ayetler.asMap().entries.map((entry) {
-              final index = entry.key;
-              final ayet = entry.value;
-              final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
-              final isSelected = _seciliAyetIndex == index;
+          // Ayetler - Performans optimizasyonu için ListView.builder kullan
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverList.builder(
+              itemCount: _ayetler.length,
+              itemBuilder: (context, index) {
+                final ayet = _ayetler[index];
+                final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
+                final isSelected = _seciliAyetIndex == index;
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: AyetItem(
-                  ayet: ayet,
-                  isPlaying: isCurrentAudio,
-                  isSelected: isSelected,
-                  onTap: () {
-                    setState(() {
-                      _seciliAyetIndex = isSelected ? null : index;
-                      _aktifAyetIndex = index;
-                    });
-                    _saveReadingPosition(index);
-                  },
-                  onPlayPressed: () => _playAyetAudio(ayet),
-                ),
-              );
-            }),
-          ],
-        ),
+                return RepaintBoundary(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: AyetItem(
+                      ayet: ayet,
+                      isPlaying: isCurrentAudio,
+                      isSelected: isSelected,
+                      onTap: () {
+                        setState(() {
+                          _seciliAyetIndex = isSelected ? null : index;
+                          _aktifAyetIndex = index;
+                        });
+                        _saveReadingPosition(index);
+                      },
+                      onPlayPressed: () => _playAyetAudio(ayet),
+                    ),
+                  ),
+                );
+              },
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: false, // RepaintBoundary'i manuel ekledik
+              addSemanticIndexes: false,
+            ),
+          ),
+        ],
       ),
     );
   }
