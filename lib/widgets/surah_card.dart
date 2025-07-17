@@ -34,9 +34,9 @@ class SurahCard extends StatelessWidget {
                     ? [Color(0xFF0D2E21), Color(0xFF1B4F3A)]
                     : [Color(0xFF1B4F3A), Color(0xFF2E7D32)],
               ),
-              boxShadow: [
+              boxShadow: const [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Color(0x1A000000),
                   blurRadius: 4,
                   offset: Offset(0, 2),
                 ),
@@ -49,20 +49,22 @@ class SurahCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Sure numarası
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${sure.number}',
-                        style: const TextStyle(
-                          color: Color(0xFF1B4F3A),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                  RepaintBoundary(
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${sure.number}',
+                          style: const TextStyle(
+                            color: Color(0xFF1B4F3A),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                     ),

@@ -10,6 +10,17 @@ import 'constants/app_strings.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Performance optimizations
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ),
+  );
+
   // System UI ayarları
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,

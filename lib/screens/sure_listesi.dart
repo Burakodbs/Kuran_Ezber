@@ -497,7 +497,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      physics: const BouncingScrollPhysics(),
+      physics: const ClampingScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: _getCrossAxisCount(context),
         childAspectRatio: _getAspectRatio(context),
@@ -508,15 +508,17 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
       itemBuilder: (context, index) {
         final sure = _filtrelenmisSureler[index];
 
-        return Hero(
-          tag: 'surah_${sure.number}',
-          child: SurahCard(
-            sure: sure,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => InteractiveMushafEkrani(
-                  surahModel: sure,
+        return RepaintBoundary(
+          child: Hero(
+            tag: 'surah_${sure.number}',
+            child: SurahCard(
+              sure: sure,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => InteractiveMushafEkrani(
+                    surahModel: sure,
+                  ),
                 ),
               ),
             ),
@@ -524,8 +526,9 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
         );
       },
       addAutomaticKeepAlives: false,
-      addRepaintBoundaries: true,
+      addRepaintBoundaries: false, // RepaintBoundary'i manuel ekledik
       addSemanticIndexes: false,
+      cacheExtent: 0, // Viewport dışındaki widget'ları cache'leme
     );
   }
 
