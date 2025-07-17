@@ -10,4 +10,5 @@
 local.properties
 .dart_tool
 .claude
-.dart_tool
+android/.kotlin
+
