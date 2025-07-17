@@ -421,9 +421,11 @@ class KuranProvider with ChangeNotifier {
 
       if (cachedData != null && cachedData['ayahs'] != null) {
         final List<dynamic> jsonList = cachedData['ayahs'];
-        return jsonList.map((json) {
+        return jsonList.asMap().entries.map((entry) {
+          final index = entry.key;
+          final json = entry.value;
           return AyetModel(
-            number: json['number'],
+            number: index + 1, // Sure içindeki ayet numarası (1'den başlar)
             surahNumber: json['surahNumber'],
             arabic: json['arabic'],
             turkish: json['turkish'],

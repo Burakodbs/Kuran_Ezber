@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/surah_model.dart';
 
-class SurahCard extends StatelessWidget { // StatefulWidget yerine StatelessWidget
+class SurahCard extends StatelessWidget {
   final SurahModel sure;
   final VoidCallback onTap;
 
@@ -16,8 +16,8 @@ class SurahCard extends StatelessWidget { // StatefulWidget yerine StatelessWidg
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return RepaintBoundary( // Performance için
-      child: Material( // Basit tap animasyonu için
+    return RepaintBoundary(
+      child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
@@ -68,9 +68,9 @@ class SurahCard extends StatelessWidget { // StatefulWidget yerine StatelessWidg
                     ),
                   ),
 
-                  // Sure adı
+                  // Türkçe sure adı
                   Text(
-                    sure.englishName,
+                    sure.turkishName,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -80,6 +80,21 @@ class SurahCard extends StatelessWidget { // StatefulWidget yerine StatelessWidg
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+
+                  // Arapça sure adı (küçük font)
+                  if (sure.name.isNotEmpty)
+                    Text(
+                      sure.name,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        fontFamily: 'UthmanicHafs',
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textDirection: TextDirection.rtl,
+                    ),
 
                   // Ayet sayısı ve tip
                   Text(

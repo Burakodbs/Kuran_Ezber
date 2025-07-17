@@ -57,7 +57,6 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
   }
 
   /// Responsive cross axis count hesapla
-  /// Responsive cross axis count hesapla
   int _getCrossAxisCount(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     if (width > 1200) return 4;
@@ -69,12 +68,12 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
   /// Responsive aspect ratio hesapla
   double _getAspectRatio(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    if (width > 1200) return 1.4; // Desktop - daha yüksek kartlar
-    if (width > 800) return 1.35;  // Tablet
-    return 1.3; // Mobile - yüksek kartlar
+    if (width > 1200) return 1.4;
+    if (width > 800) return 1.35;
+    return 1.3;
   }
 
-  /// Sureleri filtrele
+  /// Sureleri filtrele - Türkçe isimlerle de arama yapabilir
   void _filtreSureler() {
     final query = _searchController.text.toLowerCase();
     final provider = Provider.of<KuranProvider>(context, listen: false);
@@ -96,12 +95,13 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
         }).toList();
       }
 
-      // Text search filter
+      // Text search filter - Türkçe isimler de dahil
       if (query.isEmpty) {
         _filtrelenmisSureler = baseSureler;
       } else {
         _filtrelenmisSureler = baseSureler.where((sure) {
           return sure.englishName.toLowerCase().contains(query) ||
+              sure.turkishName.toLowerCase().contains(query) ||  // Türkçe isim araması eklendi
               sure.name.toLowerCase().contains(query) ||
               sure.englishNameTranslation.toLowerCase().contains(query) ||
               sure.number.toString().contains(query);
@@ -131,7 +131,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SingleChildScrollView( // Yatay scroll eklendi
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         child: Row(
@@ -143,7 +143,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
             _buildFilterChip(AppStrings.medinan, 'medinan'),
             const SizedBox(width: 8),
             _buildFavoriteChip(),
-            const SizedBox(width: 16), // Sağ boşluk
+            const SizedBox(width: 16),
           ],
         ),
       ),
@@ -208,7 +208,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
           const SizedBox(height: 12),
           SizedBox(
             height: 100,
-            child: SingleChildScrollView( // Yatay scroll eklendi
+            child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               child: Row(
@@ -233,7 +233,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
                       MaterialPageRoute(builder: (context) => const SearchScreen()),
                     ),
                   ),
-                  const SizedBox(width: 16), // Sağ boşluk
+                  const SizedBox(width: 16),
                 ],
               ),
             ),
@@ -335,7 +335,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
               );
 
               return ListTile(
-                title: Text('${surah.englishName} - ${AppStrings.ayah} $ayahNumber'),
+                title: Text('${surah.turkishName} - ${AppStrings.ayah} $ayahNumber'),
                 subtitle: Text(surah.englishNameTranslation),
                 onTap: () {
                   Navigator.pop(context);
@@ -497,7 +497,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      physics: const BouncingScrollPhysics(), // Smooth scroll
+      physics: const BouncingScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: _getCrossAxisCount(context),
         childAspectRatio: _getAspectRatio(context),
@@ -523,7 +523,6 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
           ),
         );
       },
-      // Cache için - performance artışı
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       addSemanticIndexes: false,
@@ -600,6 +599,7 @@ class KuranSearchDelegate extends SearchDelegate<String> {
         ? sureler
         : sureler.where((sure) {
       return sure.englishName.toLowerCase().contains(query.toLowerCase()) ||
+          sure.turkishName.toLowerCase().contains(query.toLowerCase()) ||  // Türkçe isim araması
           sure.name.toLowerCase().contains(query.toLowerCase()) ||
           sure.englishNameTranslation.toLowerCase().contains(query.toLowerCase()) ||
           sure.number.toString().contains(query);

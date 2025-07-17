@@ -51,6 +51,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       } else {
         _searchResults = provider.sureler.where((sure) {
           return sure.englishName.toLowerCase().contains(query.toLowerCase()) ||
+              sure.turkishName.toLowerCase().contains(query.toLowerCase()) ||  // Türkçe isim araması eklendi
               sure.name.toLowerCase().contains(query.toLowerCase()) ||
               sure.englishNameTranslation.toLowerCase().contains(query.toLowerCase()) ||
               sure.number.toString().contains(query) ||
@@ -104,7 +105,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         controller: _searchController,
         autofocus: true,
         decoration: InputDecoration(
-          hintText: 'Sûre adı, numarası veya özelliği arayın...',
+          hintText: 'Sûre adı (Türkçe/Arapça), numarası veya özelliği arayın...',
           prefixIcon: Icon(
             Icons.search,
             color: theme.primaryColor,
@@ -193,7 +194,8 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   Widget _buildSearchTips(ThemeData theme) {
     final tips = [
       {'icon': Icons.numbers, 'text': 'Sûre numarası (ör: 1, 2, 114)'},
-      {'icon': Icons.text_fields, 'text': 'Sûre adı (ör: Fatiha, Bakara)'},
+      {'icon': Icons.text_fields, 'text': 'Türkçe sûre adı (ör: Fatiha, Bakara, Nisa)'},
+      {'icon': Icons.translate, 'text': 'Arapça sûre adı (ör: الفاتحة، البقرة)'},
       {'icon': Icons.location_on, 'text': 'Nüzul yeri (ör: Mekki, Medeni)'},
     ];
 
