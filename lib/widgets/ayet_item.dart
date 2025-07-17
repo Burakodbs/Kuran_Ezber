@@ -41,9 +41,21 @@ class _AyetItemState extends State<AyetItem> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<KuranProvider>(context, listen: false);
     final theme = Theme.of(context);
-    final isBookmarked = provider.isBookmarked(widget.ayet.bookmarkKey);
+    
+    return RepaintBoundary(
+      child: Selector<KuranProvider, bool>(
+        selector: (context, provider) => provider.isBookmarked(widget.ayet.bookmarkKey),
+        shouldRebuild: (previous, next) => previous != next,
+        builder: (context, isBookmarked, _) {
+          final provider = Provider.of<KuranProvider>(context, listen: false);
+          return _buildAyetContent(theme, provider, isBookmarked);
+        },
+      ),
+    );
+  }
+
+  Widget _buildAyetContent(ThemeData theme, KuranProvider provider, bool isBookmarked) {
 
     return Container(
       width: double.infinity, // Tam genişlik
@@ -51,7 +63,8 @@ class _AyetItemState extends State<AyetItem> {
       child: GestureDetector(
         onTap: widget.onTap,
         onLongPress: () => setState(() => _showActions = !_showActions),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: _getBackgroundColor(theme),
@@ -87,115 +100,106 @@ class _AyetItemState extends State<AyetItem> {
   }
 
   Widget _buildArabicTextWithNumber(ThemeData theme, KuranProvider provider) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: RichText(
-        textAlign: TextAlign.justify,
+    return RepaintBoundary(
+      child: Directionality(
         textDirection: TextDirection.rtl,
-        text: TextSpan(
-          children: [
-            // Arapça ayet metni
-            TextSpan(
-              text: widget.ayet.arabic,
-              style: TextStyle(
-                fontSize: provider.arabicFontSize,
-                height: 1.8,
-                color: widget.isPlaying
-                    ? theme.primaryColor
-                    : theme.textTheme.bodyLarge?.color ?? Colors.black87,
-                fontWeight: widget.isPlaying ? FontWeight.w600 : FontWeight.w400,
-                fontFamily: 'UthmanicHafs',
-                wordSpacing: 3,
-                letterSpacing: 0.5,
+        child: RichText(
+          textAlign: TextAlign.justify,
+          textDirection: TextDirection.rtl,
+          maxLines: null,
+          text: TextSpan(
+            children: [
+              // Arapça ayet metni
+              TextSpan(
+                text: widget.ayet.arabic,
+                style: TextStyle(
+                  fontSize: provider.arabicFontSize,
+                  height: 1.8,
+                  color: widget.isPlaying
+                      ? theme.primaryColor
+                      : theme.textTheme.bodyLarge?.color ?? Colors.black87,
+                  fontWeight: widget.isPlaying ? FontWeight.w600 : FontWeight.w400,
+                  fontFamily: 'UthmanicHafs',
+                  wordSpacing: 3,
+                  letterSpacing: 0.5,
+                ),
               ),
-            ),
 
-            // Küçük boşluk
-            const TextSpan(text: ' '),
+              // Küçük boşluk
+              const TextSpan(text: ' '),
 
-            // Arapça ayet numarası - yuvarlak işaret
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                child: _buildAyahNumberCircle(theme),
+              // Arapça ayet numarası - yuvarlak işaret
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _buildAyahNumberCircle(theme),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildAyahNumberCircle(ThemeData theme) {
-    return Container(
+    // Performans için static değerler cache'le
+    final arabicNumber = _convertToArabicNumber(widget.ayet.number);
+    final isPlaying = widget.isPlaying;
+    
+    return RepaintBoundary(
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Ana çember
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: widget.isPlaying
-                    ? Colors.green.withOpacity(0.7)
-                    : theme.primaryColor.withOpacity(0.6),
-                width: 1,
-              ),
-              color: widget.isPlaying
-                  ? Colors.green.withOpacity(0.1)
-                  : theme.primaryColor.withOpacity(0.1),
-            ),
-            child: Center(
-              child: Text(
-                _convertToArabicNumber(widget.ayet.number),
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  color: widget.isPlaying
-                      ? Colors.green.shade700
-                      : theme.primaryColor,
-                  fontFamily: 'UthmanicHafs',
+            // Ana çember
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isPlaying
+                      ? Colors.green.withOpacity(0.7)
+                      : theme.primaryColor.withOpacity(0.6),
+                  width: 1,
                 ),
+                color: isPlaying
+                    ? Colors.green.withOpacity(0.1)
+                    : theme.primaryColor.withOpacity(0.1),
               ),
-            ),
-          ),
-
-          // Oynatma göstergesi - küçük yeşil nokta
-          if (widget.isPlaying)
-            Positioned(
-              top: -1,
-              right: -1,
-              child: Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.green,
+              child: Center(
+                child: Text(
+                  arabicNumber,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: isPlaying
+                        ? Colors.green.shade700
+                        : theme.primaryColor,
+                    fontFamily: 'UthmanicHafs',
+                  ),
                 ),
               ),
             ),
 
-          // Bookmark göstergesi - küçük kırmızı nokta
-          if (Provider.of<KuranProvider>(context, listen: false)
-              .isBookmarked(widget.ayet.bookmarkKey))
-            Positioned(
-              top: -1,
-              left: -1,
-              child: Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.red,
+            // Oynatma göstergesi - küçük yeşil nokta
+            if (isPlaying)
+              Positioned(
+                top: -1,
+                right: -1,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.green,
+                  ),
                 ),
               ),
-            ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
   }
 
   Widget _buildTranslationText(ThemeData theme) {

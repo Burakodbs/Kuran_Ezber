@@ -28,6 +28,15 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Performance optimizations
+        vectorDrawables.useSupportLibrary = true
+        multiDexEnabled = true
+        
+        // Samsung-specific optimizations
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
