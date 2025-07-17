@@ -606,7 +606,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                   onPlayPressed: () => _playAyetAudio(ayet),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
