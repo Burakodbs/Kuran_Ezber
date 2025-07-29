@@ -152,8 +152,10 @@ class AyetModel {
     'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalNumber.mp3',
     'https://cdn.islamic.network/quran/audio/64/ar.alafasy/$globalNumber.mp3',
     'https://cdn.alquran.cloud/media/audio/ayah/ar.alafasy/$globalNumber',
+    'https://everyayah.com/data/AlAfasy_128kbps/$globalNumber.mp3',
     'https://cdn.islamic.network/quran/audio/128/ar.abdurrahmaansudais/$globalNumber.mp3',
     'https://cdn.islamic.network/quran/audio/128/ar.hudhaify/$globalNumber.mp3',
+    'https://audio.qurancdn.com/ar.alafasy/$globalNumber.mp3',
   ];
 
   // Model'i JSON'a çevirme
@@ -197,7 +199,7 @@ class AyetModel {
   Future<bool> validateAudioUrl() async {
     try {
       final response = await http.head(Uri.parse(audioUrl))
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 3));
       return response.statusCode == 200;
     } catch (e) {
       return false;
@@ -215,7 +217,7 @@ class AyetModel {
     for (final url in alternativeAudioUrls) {
       try {
         final response = await http.head(Uri.parse(url))
-            .timeout(const Duration(seconds: 3));
+            .timeout(const Duration(seconds: 2));
         if (response.statusCode == 200) {
           return url;
         }
@@ -225,5 +227,12 @@ class AyetModel {
     }
 
     return null; // Hiçbiri çalışmıyorsa null döndür
+  }
+
+  // Get all possible audio URLs for this ayah
+  List<String> getAllAudioUrls() {
+    final urls = <String>[audioUrl];
+    urls.addAll(alternativeAudioUrls.where((url) => url != audioUrl));
+    return urls;
   }
 }

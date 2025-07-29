@@ -185,10 +185,10 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColor.withOpacity(0.1),
+                              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Text(
@@ -427,7 +427,7 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -827,10 +827,12 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
           ),
           TextButton(
             onPressed: () async {
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               await provider.clearAllBookmarks();
-              Navigator.pop(context);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                navigator.pop();
+                messenger.showSnackBar(
                   SnackBar(
                     content: const Text('Tüm yer işaretleri silindi'),
                     backgroundColor: Colors.orange,
@@ -864,13 +866,14 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
             onPressed: () async {
               Navigator.pop(context);
               setState(() => _isLoading = true);
+              final messenger = ScaffoldMessenger.of(context);
 
               await provider.clearCache();
               await _loadStorageInfo();
 
               if (mounted) {
                 setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(AppStrings.cacheCleared),
                     backgroundColor: Colors.green,

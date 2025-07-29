@@ -14,7 +14,7 @@ class InteractiveMushafEkrani extends StatefulWidget {
   const InteractiveMushafEkrani({super.key, required this.surahModel});
 
   @override
-  _InteractiveMushafEkraniState createState() => _InteractiveMushafEkraniState();
+  State<InteractiveMushafEkrani> createState() => _InteractiveMushafEkraniState();
 }
 
 class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
@@ -25,6 +25,8 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   int _aktifAyetIndex = 0;
   bool _sesOynatiliyor = false;
   int? _seciliAyetIndex;
+  DateTime? _lastAudioPlayCall;
+  static const Duration _audioDebounceDelay = Duration(milliseconds: 300);
 
   @override
   void initState() {
@@ -110,12 +112,26 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
   /// Ayet sesini oynat
   Future<void> _playAyetAudio(AyetModel ayet) async {
+    // Debounce rapid calls to prevent multiple concurrent audio streams
+    final now = DateTime.now();
+    if (_lastAudioPlayCall != null && 
+        now.difference(_lastAudioPlayCall!) < _audioDebounceDelay) {
+      debugPrint('InteractiveMushaf: Debouncing rapid audio play call');
+      return;
+    }
+    
+    _lastAudioPlayCall = now;
+    
     try {
-      await AudioManager.playAudio(ayet.audioUrl, () {
-        if (mounted) {
-          setState(() {});
-        }
-      });
+      await AudioManager.playAudio(
+        ayet.audioUrl, 
+        () {
+          if (mounted) {
+            setState(() {});
+          }
+        },
+        fallbackUrls: ayet.alternativeAudioUrls,
+      );
 
       if (mounted) {
         setState(() {});
@@ -123,34 +139,23 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     } catch (e) {
       debugPrint('Audio play error: $e');
       _showErrorSnackBar(AppStrings.audioError);
-      await _tryAlternativeAudio(ayet);
     }
   }
 
-  /// Alternatif audio URL'lerini dene
-  Future<void> _tryAlternativeAudio(AyetModel ayet) async {
-    try {
-      final workingUrl = await ayet.findWorkingAudioUrl();
-      if (workingUrl != null) {
-        await AudioManager.playAudio(workingUrl, () {
-          if (mounted) {
-            setState(() {});
-          }
-        });
-
-        _showSuccessSnackBar('Alternatif ses kaynağı bulundu');
-      } else {
-        _showErrorSnackBar('Hiçbir ses kaynağı çalışmıyor');
-      }
-    } catch (e) {
-      debugPrint('Alternative audio error: $e');
-      _showErrorSnackBar('Alternatif ses de yüklenemedi');
-    }
-  }
 
   /// Tüm sureyi oynat
   Future<void> _playFullSurah() async {
     if (_ayetler.isEmpty) return;
+
+    // Debounce rapid full surah play calls
+    final now = DateTime.now();
+    if (_lastAudioPlayCall != null && 
+        now.difference(_lastAudioPlayCall!) < _audioDebounceDelay) {
+      debugPrint('InteractiveMushaf: Debouncing rapid full surah play call');
+      return;
+    }
+    
+    _lastAudioPlayCall = now;
 
     try {
       setState(() => _sesOynatiliyor = !_sesOynatiliyor);
@@ -235,19 +240,6 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     }
   }
 
-  /// Başarı mesajı göster
-  void _showSuccessSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
 
   /// Hata mesajı göster
   void _showErrorSnackBar(String message) {
@@ -282,13 +274,13 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            theme.primaryColor.withOpacity(0.1),
-            theme.primaryColor.withOpacity(0.05),
+            theme.primaryColor.withValues(alpha: 0.1),
+            theme.primaryColor.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: theme.primaryColor.withOpacity(0.2),
+          color: theme.primaryColor.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -299,7 +291,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               border: Border.all(
-                color: theme.primaryColor.withOpacity(0.3),
+                color: theme.primaryColor.withValues(alpha: 0.3),
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(12),
@@ -328,7 +320,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.05),
+                color: theme.primaryColor.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -336,7 +328,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: theme.primaryColor.withOpacity(0.8),
+                  color: theme.primaryColor.withValues(alpha: 0.8),
                   fontStyle: FontStyle.italic,
                   height: 1.4,
                 ),

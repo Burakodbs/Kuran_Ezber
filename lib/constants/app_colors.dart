@@ -60,9 +60,9 @@ class AppColors {
   static const double opacity90 = 0.9;
 
   // Gölge Renkleri
-  static Color shadowLight = Colors.black.withOpacity(0.1);
-  static Color shadowMedium = Colors.black.withOpacity(0.2);
-  static Color shadowHeavy = Colors.black.withOpacity(0.3);
+  static Color shadowLight = Colors.black.withValues(alpha: 0.1);
+  static Color shadowMedium = Colors.black.withValues(alpha: 0.2);
+  static Color shadowHeavy = Colors.black.withValues(alpha: 0.3);
 
   // Özel Renkler (Context'e göre)
   static Color getBackgroundColor(BuildContext context) {
@@ -107,14 +107,12 @@ class AppColors {
     bool isSelected = false,
     bool isHovered = false,
   }) {
-    final theme = Theme.of(context);
-
     if (isPlaying) {
-      return primary.withOpacity(0.15);
+      return primary.withValues(alpha: 0.15);
     } else if (isSelected) {
-      return primary.withOpacity(0.08);
+      return primary.withValues(alpha: 0.08);
     } else if (isHovered) {
-      return warning.withOpacity(0.1);
+      return warning.withValues(alpha: 0.1);
     }
 
     return getCardColor(context);

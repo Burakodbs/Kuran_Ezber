@@ -189,7 +189,6 @@ class QuranApiService {
 
           return MushafPageModel(
             ayahs: pageAyahs.asMap().entries.map((entry) {
-              final index = entry.key;
               final arabicAyah = entry.value;
               
               Map<String, dynamic>? matchingTurkish;

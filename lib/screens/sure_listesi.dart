@@ -14,7 +14,7 @@ class SureListesi extends StatefulWidget {
   const SureListesi({super.key});
 
   @override
-  _SureListesiState createState() => _SureListesiState();
+  State<SureListesi> createState() => _SureListesiState();
 }
 
 class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin {
@@ -160,7 +160,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
       selected: isSelected,
       onSelected: (_) => _changeFilter(value),
       backgroundColor: theme.cardColor,
-      selectedColor: theme.primaryColor.withOpacity(0.2),
+      selectedColor: theme.primaryColor.withValues(alpha: 0.2),
       checkmarkColor: theme.primaryColor,
       labelStyle: TextStyle(
         color: isSelected ? theme.primaryColor : null,
@@ -178,7 +178,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
       selected: _showFavorites,
       onSelected: (_) => _toggleFavorites(),
       backgroundColor: theme.cardColor,
-      selectedColor: Colors.orange.withOpacity(0.2),
+      selectedColor: Colors.orange.withValues(alpha: 0.2),
       checkmarkColor: Colors.orange,
       avatar: Icon(
         _showFavorites ? Icons.star : Icons.star_border,
@@ -301,7 +301,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
           builder: (context) => InteractiveMushafEkrani(surahModel: surah),
         ),
       );
-    } else {
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Henüz okuma geçmişi bulunamadı'),
@@ -461,9 +461,9 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
               ),
               child: Column(
                 children: [

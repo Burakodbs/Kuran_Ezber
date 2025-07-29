@@ -1,6 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:http/http.dart' as http;
 
 class AudioManager {
   static final AudioManager _instance = AudioManager._internal();
@@ -15,6 +16,14 @@ class AudioManager {
   static Duration _totalDuration = Duration.zero;
   static double _volume = 1.0;
   static double _playbackSpeed = 1.0;
+  static VoidCallback? _currentCompletionCallback;
+  static StreamSubscription<PlayerState>? _stateSubscription;
+  static StreamSubscription<Duration>? _positionSubscription;
+  static StreamSubscription<Duration>? _durationSubscription;
+  static bool _isDisposed = false;
+  static DateTime? _lastPlayCall;
+  static const Duration _debounceDelay = Duration(milliseconds: 300);
+  static bool _isProcessingPlayRequest = false;
 
   // Stream controllers for reactive updates
   static final StreamController<bool> _playingStateController =
@@ -27,6 +36,9 @@ class AudioManager {
   StreamController<String?>.broadcast();
   static final StreamController<PlayerState> _playerStateController =
   StreamController<PlayerState>.broadcast();
+
+  // Cache for validated URLs
+  static final Map<String, bool> _urlValidationCache = {};
 
   // Getters
   static bool get isPlaying => _isPlaying;
@@ -54,11 +66,20 @@ class AudioManager {
 
   /// Player event listener'larını ayarla
   static void _setupPlayerListeners() {
-    if (_audioPlayer == null) return;
+    if (_audioPlayer == null || _isDisposed) return;
+
+    // Cancel any existing subscriptions to prevent multiple listeners
+    _stateSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
 
     // Player state changes
-    _audioPlayer!.onPlayerStateChanged.listen((state) {
-      _playerStateController.add(state);
+    _stateSubscription = _audioPlayer!.onPlayerStateChanged.listen((state) {
+      if (_isDisposed) return;
+      
+      if (!_playerStateController.isClosed) {
+        _playerStateController.add(state);
+      }
 
       switch (state) {
         case PlayerState.playing:
@@ -70,30 +91,63 @@ class AudioManager {
           _isPaused = true;
           break;
         case PlayerState.stopped:
+          _isPlaying = false;
+          _isPaused = false;
+          _currentAudioUrl = null;
+          _currentPosition = Duration.zero;
+          if (!_urlController.isClosed) {
+            _urlController.add(null);
+          }
+          _currentCompletionCallback = null;
+          break;
         case PlayerState.completed:
           _isPlaying = false;
           _isPaused = false;
           _currentAudioUrl = null;
           _currentPosition = Duration.zero;
-          _urlController.add(null);
+          if (!_urlController.isClosed) {
+            _urlController.add(null);
+          }
+          
+          // Call the completion callback if it exists
+          final callback = _currentCompletionCallback;
+          _currentCompletionCallback = null;
+          if (callback != null) {
+            Future.microtask(() => callback());
+          }
           break;
         default:
           break;
       }
 
-      _playingStateController.add(_isPlaying);
+      if (!_playingStateController.isClosed) {
+        _playingStateController.add(_isPlaying);
+      }
+    }, onError: (error) {
+      debugPrint('Audio player state error: $error');
+      _handlePlaybackError(error);
     });
 
     // Position changes
-    _audioPlayer!.onPositionChanged.listen((position) {
+    _positionSubscription = _audioPlayer!.onPositionChanged.listen((position) {
+      if (_isDisposed) return;
       _currentPosition = position;
-      _positionController.add(position);
+      if (!_positionController.isClosed) {
+        _positionController.add(position);
+      }
+    }, onError: (error) {
+      debugPrint('Audio position error: $error');
     });
 
     // Duration changes
-    _audioPlayer!.onDurationChanged.listen((duration) {
+    _durationSubscription = _audioPlayer!.onDurationChanged.listen((duration) {
+      if (_isDisposed) return;
       _totalDuration = duration;
-      _durationController.add(duration);
+      if (!_durationController.isClosed) {
+        _durationController.add(duration);
+      }
+    }, onError: (error) {
+      debugPrint('Audio duration error: $error');
     });
   }
 
@@ -103,7 +157,26 @@ class AudioManager {
       VoidCallback? onComplete, {
         bool autoPlay = true,
         double? startPosition,
+        List<String>? fallbackUrls,
       }) async {
+    if (_isDisposed) return;
+    
+    // Debounce rapid calls
+    final now = DateTime.now();
+    if (_lastPlayCall != null && now.difference(_lastPlayCall!) < _debounceDelay) {
+      debugPrint('AudioManager: Debouncing rapid play call');
+      return;
+    }
+    
+    // Prevent concurrent play requests
+    if (_isProcessingPlayRequest) {
+      debugPrint('AudioManager: Already processing play request');
+      return;
+    }
+    
+    _lastPlayCall = now;
+    _isProcessingPlayRequest = true;
+    
     try {
       await _initializePlayer();
 
@@ -124,36 +197,60 @@ class AudioManager {
         await stopAudio();
       }
 
-      _currentAudioUrl = audioUrl;
-      _urlController.add(audioUrl);
+      // Set the completion callback BEFORE starting playback
+      _currentCompletionCallback = onComplete;
+      
+      // Try to play the primary URL first
+      final workingUrl = await _findWorkingUrl(audioUrl, fallbackUrls);
+      if (workingUrl == null) {
+        throw Exception('No working audio URL found');
+      }
+      
+      _currentAudioUrl = workingUrl;
+      if (!_urlController.isClosed) {
+        _urlController.add(workingUrl);
+      }
 
       if (autoPlay) {
-        await _audioPlayer!.play(UrlSource(audioUrl));
+        await _audioPlayer!.play(UrlSource(workingUrl));
 
         if (startPosition != null) {
           await _audioPlayer!.seek(Duration(seconds: startPosition.toInt()));
         }
       } else {
-        await _audioPlayer!.setSource(UrlSource(audioUrl));
-      }
-
-      // Completion callback'i ayarla
-      if (onComplete != null) {
-        _audioPlayer!.onPlayerStateChanged.listen((state) {
-          if (state == PlayerState.completed) {
-            onComplete();
-          }
-        });
+        await _audioPlayer!.setSource(UrlSource(workingUrl));
       }
 
     } catch (e) {
       debugPrint('Audio playback error: $e');
       _handlePlaybackError(e);
+      rethrow;
+    } finally {
+      _isProcessingPlayRequest = false;
     }
+  }
+
+  /// Ses dosyasını oynat ve tamamlanmasını bekle (Future tabanlı)
+  static Future<void> playAudioAndWait(String audioUrl, {double? startPosition}) async {
+    final completer = Completer<void>();
+    
+    await playAudio(
+      audioUrl,
+      () => completer.complete(),
+      autoPlay: true,
+      startPosition: startPosition,
+    );
+    
+    return completer.future;
   }
 
   /// Ses oynatmayı duraklat
   static Future<void> pauseAudio() async {
+    if (_isProcessingPlayRequest) {
+      debugPrint('AudioManager: Cannot pause while processing play request');
+      return;
+    }
+    
     try {
       if (_audioPlayer != null && _isPlaying) {
         await _audioPlayer!.pause();
@@ -178,16 +275,25 @@ class AudioManager {
   static Future<void> stopAudio() async {
     try {
       if (_audioPlayer != null) {
+        // Clear completion callback before stopping to prevent unwanted callbacks
+        _currentCompletionCallback = null;
+        
         await _audioPlayer!.stop();
         _isPlaying = false;
         _isPaused = false;
         _currentAudioUrl = null;
         _currentPosition = Duration.zero;
-        _playingStateController.add(false);
-        _urlController.add(null);
+        if (!_playingStateController.isClosed) {
+          _playingStateController.add(false);
+        }
+        if (!_urlController.isClosed) {
+          _urlController.add(null);
+        }
       }
     } catch (e) {
       debugPrint('Audio stop error: $e');
+    } finally {
+      _isProcessingPlayRequest = false;
     }
   }
 
@@ -287,6 +393,7 @@ class AudioManager {
     _isPlaying = false;
     _isPaused = false;
     _currentAudioUrl = null;
+    _currentCompletionCallback = null; // Clear completion callback on error
     _playingStateController.add(false);
     _urlController.add(null);
 
@@ -400,26 +507,81 @@ class AudioManager {
     return _audioPlayer != null;
   }
 
+  /// Find a working audio URL from the given options
+  static Future<String?> _findWorkingUrl(String primaryUrl, List<String>? fallbackUrls) async {
+    // Check cache first
+    if (_urlValidationCache.containsKey(primaryUrl) && _urlValidationCache[primaryUrl] == true) {
+      return primaryUrl;
+    }
+
+    // Try primary URL
+    if (await _validateUrl(primaryUrl)) {
+      _urlValidationCache[primaryUrl] = true;
+      return primaryUrl;
+    }
+
+    // Try fallback URLs
+    if (fallbackUrls != null) {
+      for (final url in fallbackUrls) {
+        if (_urlValidationCache.containsKey(url) && _urlValidationCache[url] == true) {
+          return url;
+        }
+        if (await _validateUrl(url)) {
+          _urlValidationCache[url] = true;
+          return url;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Validate a single URL
+  static Future<bool> _validateUrl(String url) async {
+    try {
+      final response = await http.head(Uri.parse(url))
+          .timeout(const Duration(seconds: 3));
+      final isValid = response.statusCode == 200;
+      _urlValidationCache[url] = isValid;
+      return isValid;
+    } catch (e) {
+      _urlValidationCache[url] = false;
+      return false;
+    }
+  }
+
+  /// Clear URL validation cache
+  static void clearUrlCache() {
+    _urlValidationCache.clear();
+  }
+
   /// Mevcut audio URL'sinin geçerli olup olmadığını kontrol et
   static Future<bool> validateCurrentUrl() async {
     if (_currentAudioUrl == null) return false;
-
-    try {
-      // Burada URL validation logic'i yazılabilir
-      // Örneğin HTTP HEAD request ile kontrol
-      return true;
-    } catch (e) {
-      return false;
-    }
+    return _validateUrl(_currentAudioUrl!);
   }
 
   /// AudioManager'ı temizle ve kaynakları serbest bırak
   static Future<void> dispose() async {
     try {
-      await _audioPlayer?.dispose();
-      _audioPlayer = null;
+      _isDisposed = true;
+      
+      // Cancel all subscriptions
+      await _stateSubscription?.cancel();
+      await _positionSubscription?.cancel();
+      await _durationSubscription?.cancel();
+      _stateSubscription = null;
+      _positionSubscription = null;
+      _durationSubscription = null;
+      
+      // Stop and dispose audio player
+      if (_audioPlayer != null) {
+        await _audioPlayer!.stop();
+        await _audioPlayer!.dispose();
+        _audioPlayer = null;
+      }
 
-      // Stream controller'ları kapat
+      // Close stream controllers
       if (!_playingStateController.isClosed) {
         await _playingStateController.close();
       }
@@ -436,17 +598,43 @@ class AudioManager {
         await _playerStateController.close();
       }
 
-      // State'i sıfırla
+      // Clear caches and reset state
+      _urlValidationCache.clear();
       _isPlaying = false;
       _isPaused = false;
       _currentAudioUrl = null;
+      _currentCompletionCallback = null;
       _currentPosition = Duration.zero;
       _totalDuration = Duration.zero;
       _volume = 1.0;
       _playbackSpeed = 1.0;
+      _lastPlayCall = null;
+      _isProcessingPlayRequest = false;
 
     } catch (e) {
       debugPrint('AudioManager dispose error: $e');
+    }
+  }
+
+  /// Reset AudioManager to initial state
+  static Future<void> resetToInitialState() async {
+    if (_isDisposed) {
+      _isDisposed = false;
+    }
+    
+    await stopAudio();
+    clearUrlCache();
+    
+    _currentPosition = Duration.zero;
+    _totalDuration = Duration.zero;
+    _volume = 1.0;
+    _playbackSpeed = 1.0;
+    
+    if (!_positionController.isClosed) {
+      _positionController.add(Duration.zero);
+    }
+    if (!_durationController.isClosed) {
+      _durationController.add(Duration.zero);
     }
   }
 
@@ -462,6 +650,11 @@ class AudioManager {
       'playbackSpeed': _playbackSpeed,
       'progress': progress,
       'hasPlayer': _audioPlayer != null,
+      'isDisposed': _isDisposed,
+      'cacheSize': _urlValidationCache.length,
+      'hasActiveSubscriptions': _stateSubscription != null || _positionSubscription != null || _durationSubscription != null,
+      'isProcessingPlayRequest': _isProcessingPlayRequest,
+      'lastPlayCall': _lastPlayCall?.toIso8601String(),
     };
   }
 }
