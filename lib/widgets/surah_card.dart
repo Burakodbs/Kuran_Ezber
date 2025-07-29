@@ -90,7 +90,7 @@ class SurahCard extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 10,
-                        fontFamily: 'UthmanicHafs',
+                        fontFamily: 'Amiri',
                       ),
                       textAlign: TextAlign.center,
                       maxLines: 1,

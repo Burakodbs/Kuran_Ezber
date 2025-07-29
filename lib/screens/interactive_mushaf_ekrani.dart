@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/ayet_model.dart';
-import '../providers/kuran_provider.dart';
-import '../models/surah_model.dart';
-import '../widgets/ayet_item.dart';
-import '../utils/audio_manager.dart';
-import '../constants/app_strings.dart';
+
 import '../constants/app_constants.dart';
+import '../constants/app_strings.dart';
+import '../models/ayet_model.dart';
+import '../models/surah_model.dart';
+import '../providers/kuran_provider.dart';
+import '../utils/audio_manager.dart';
+import '../widgets/ayet_item.dart';
 
 class InteractiveMushafEkrani extends StatefulWidget {
   final SurahModel surahModel;
@@ -14,7 +15,8 @@ class InteractiveMushafEkrani extends StatefulWidget {
   const InteractiveMushafEkrani({super.key, required this.surahModel});
 
   @override
-  State<InteractiveMushafEkrani> createState() => _InteractiveMushafEkraniState();
+  State<InteractiveMushafEkrani> createState() =>
+      _InteractiveMushafEkraniState();
 }
 
 class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
@@ -26,13 +28,30 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   bool _sesOynatiliyor = false;
   int? _seciliAyetIndex;
   DateTime? _lastAudioPlayCall;
-  static const Duration _audioDebounceDelay = Duration(milliseconds: 300);
+  static const Duration _audioDebounceDelay = Duration(milliseconds: 100);
+  
+  // Loop özellikleri
+  bool _loopMode = false;
+  int? _loopStartIndex;
+  int? _loopEndIndex;
+  int _loopCount = 0;
+  int _maxLoopCount = 3; // Varsayılan loop sayısı
+  bool _infiniteLoop = false;
 
   @override
   void initState() {
     super.initState();
     _sureviYukle();
     Provider.of<KuranProvider>(context, listen: false).loadYerIsaretleri();
+
+    // AudioManager state değişikliklerini dinle
+    AudioManager.playingStateStream.listen((_) {
+      if (mounted) setState(() {});
+    });
+
+    AudioManager.urlStream.listen((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   /// Sureyi ve ayetlerini yükle
@@ -71,9 +90,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
     if (errorString.contains('timeout')) {
       return AppStrings.timeoutError;
-    } else if (errorString.contains('socket') || errorString.contains('network')) {
+    } else if (errorString.contains('socket') ||
+        errorString.contains('network')) {
       return AppStrings.networkError;
-    } else if (errorString.contains('404') || errorString.contains('not found')) {
+    } else if (errorString.contains('404') ||
+        errorString.contains('not found')) {
       return AppStrings.notFoundError;
     } else if (errorString.contains('500') || errorString.contains('server')) {
       return AppStrings.serverError;
@@ -98,7 +119,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             _aktifAyetIndex = index;
           });
 
-          Future.delayed(const Duration(milliseconds: 300), () {
+          Future.delayed(const Duration(milliseconds: 100), () {
             if (mounted && _scrollController.hasClients) {
               _scrollToAyah(index);
             }
@@ -114,24 +135,26 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   Future<void> _playAyetAudio(AyetModel ayet) async {
     // Debounce rapid calls to prevent multiple concurrent audio streams
     final now = DateTime.now();
-    if (_lastAudioPlayCall != null && 
+    if (_lastAudioPlayCall != null &&
         now.difference(_lastAudioPlayCall!) < _audioDebounceDelay) {
       debugPrint('InteractiveMushaf: Debouncing rapid audio play call');
       return;
     }
-    
+
     _lastAudioPlayCall = now;
-    
+
     try {
-      await AudioManager.playAudio(
-        ayet.audioUrl, 
-        () {
-          if (mounted) {
-            setState(() {});
-          }
-        },
-        fallbackUrls: ayet.alternativeAudioUrls,
-      );
+      // Önce mevcut sesi durdur
+      if (AudioManager.isPlaying) {
+        await AudioManager.stopAudio();
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
+      await AudioManager.playAudio(ayet.audioUrl, () {
+        if (mounted) {
+          setState(() {});
+        }
+      }, fallbackUrls: ayet.alternativeAudioUrls);
 
       if (mounted) {
         setState(() {});
@@ -142,39 +165,28 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     }
   }
 
-
   /// Tüm sureyi oynat
   Future<void> _playFullSurah() async {
     if (_ayetler.isEmpty) return;
 
     // Debounce rapid full surah play calls
     final now = DateTime.now();
-    if (_lastAudioPlayCall != null && 
+    if (_lastAudioPlayCall != null &&
         now.difference(_lastAudioPlayCall!) < _audioDebounceDelay) {
       debugPrint('InteractiveMushaf: Debouncing rapid full surah play call');
       return;
     }
-    
+
     _lastAudioPlayCall = now;
 
     try {
       setState(() => _sesOynatiliyor = !_sesOynatiliyor);
 
       if (_sesOynatiliyor) {
-        for (int i = _aktifAyetIndex; i < _ayetler.length && _sesOynatiliyor; i++) {
-          if (!mounted) break;
-
-          setState(() => _aktifAyetIndex = i);
-          _scrollToAyah(i);
-          await _playAyetAudio(_ayetler[i]);
-
-          while (AudioManager.isPlaying && _sesOynatiliyor && mounted) {
-            await Future.delayed(const Duration(milliseconds: 100));
-          }
-
-          if (_sesOynatiliyor && mounted) {
-            await Future.delayed(const Duration(milliseconds: 500));
-          }
+        if (_loopMode && _loopStartIndex != null && _loopEndIndex != null) {
+          await _playLoopedRange();
+        } else {
+          await _playNormalRange();
         }
 
         if (mounted) {
@@ -191,6 +203,63 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     }
   }
 
+  /// Normal aralık oynatma
+  Future<void> _playNormalRange() async {
+    for (
+      int i = _aktifAyetIndex;
+      i < _ayetler.length && _sesOynatiliyor;
+      i++
+    ) {
+      if (!mounted) break;
+
+      setState(() => _aktifAyetIndex = i);
+      _scrollToAyah(i);
+
+      // Ayeti oynat ve tamamlanmasını bekle
+      await AudioManager.playAudioAndWait(_ayetler[i].audioUrl);
+
+      // Eğer hala oynatma modundaysak kısa bir ara ver
+      if (_sesOynatiliyor && mounted && i < _ayetler.length - 1) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+  }
+
+  /// Loop modunda aralık oynatma
+  Future<void> _playLoopedRange() async {
+    _loopCount = 0;
+    
+    while (_sesOynatiliyor && mounted && (_infiniteLoop || _loopCount < _maxLoopCount)) {
+      for (
+        int i = _loopStartIndex!;
+        i <= _loopEndIndex! && _sesOynatiliyor;
+        i++
+      ) {
+        if (!mounted) break;
+
+        setState(() => _aktifAyetIndex = i);
+        _scrollToAyah(i);
+
+        // Ayeti oynat ve tamamlanmasını bekle
+        await AudioManager.playAudioAndWait(_ayetler[i].audioUrl);
+
+        // Eğer hala oynatma modundaysak kısa bir ara ver
+        if (_sesOynatiliyor && mounted && i < _loopEndIndex!) {
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+      }
+      
+      if (!_infiniteLoop) {
+        _loopCount++;
+      }
+      
+      // Loop bitişinde kısa ara
+      if (_sesOynatiliyor && mounted && (_infiniteLoop || _loopCount < _maxLoopCount)) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+  }
+
   /// Belirli bir ayete scroll yap
   void _scrollToAyah(int index) {
     if (_scrollController.hasClients && index < _ayetler.length) {
@@ -201,7 +270,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
       _scrollController.animateTo(
         targetOffset,
-        duration: const Duration(milliseconds: 300), // Sabit süre daha performanslı
+        duration: const Duration(
+          milliseconds: 100,
+        ), // Sabit süre daha performanslı
         curve: Curves.easeOutCubic,
       );
     }
@@ -234,12 +305,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     if (ayahIndex < _ayetler.length) {
       final provider = Provider.of<KuranProvider>(context, listen: false);
       provider.saveLastReadPosition(
-          widget.surahModel.number,
-          _ayetler[ayahIndex].number
+        widget.surahModel.number,
+        _ayetler[ayahIndex].number,
       );
     }
   }
-
 
   /// Hata mesajı göster
   void _showErrorSnackBar(String message) {
@@ -303,7 +373,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: provider.arabicFontSize + 4,
-                  fontFamily: 'UthmanicHafs',
+                  fontFamily: 'Amiri',
                   color: theme.primaryColor,
                   fontWeight: FontWeight.w500,
                   height: 1.8,
@@ -359,9 +429,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('${widget.surahModel.number}. ${widget.surahModel.turkishName}'),
             Text(
-              '${widget.surahModel.englishNameTranslation} • ${widget.surahModel.numberOfAyahs} ${AppStrings.ayah}',
+              '${widget.surahModel.number}. ${widget.surahModel.turkishName}',
+            ),
+            Text(
+              '${widget.surahModel.revelationType == 'meccan' ? 'Mekki' : 'Medeni'} • ${widget.surahModel.numberOfAyahs} ${AppStrings.ayah}',
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
@@ -372,9 +444,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
         ),
         actions: [
           IconButton(
-            icon: Icon(provider.translationGoster
-                ? Icons.translate
-                : Icons.translate_outlined),
+            icon: Icon(
+              provider.translationGoster
+                  ? Icons.translate
+                  : Icons.translate_outlined,
+            ),
             onPressed: provider.toggleTranslation,
             tooltip: AppStrings.tooltipTranslation,
           ),
@@ -454,7 +528,8 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                     children: [
                       Flexible(
                         child: Text(
-                          _ayetler.isNotEmpty && _aktifAyetIndex < _ayetler.length
+                          _ayetler.isNotEmpty &&
+                                  _aktifAyetIndex < _ayetler.length
                               ? '${AppStrings.ayah} ${_ayetler[_aktifAyetIndex].number}/${widget.surahModel.numberOfAyahs}'
                               : '${AppStrings.ayah} 1/${widget.surahModel.numberOfAyahs}',
                           style: TextStyle(
@@ -469,8 +544,13 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: Icon(Icons.skip_previous, color: theme.primaryColor),
-                            onPressed: _aktifAyetIndex > 0 ? _previousAyah : null,
+                            icon: Icon(
+                              Icons.skip_previous,
+                              color: theme.primaryColor,
+                            ),
+                            onPressed: _aktifAyetIndex > 0
+                                ? _previousAyah
+                                : null,
                             tooltip: AppStrings.previous,
                           ),
                           IconButton(
@@ -479,11 +559,18 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                               color: theme.primaryColor,
                             ),
                             onPressed: _playFullSurah,
-                            tooltip: _sesOynatiliyor ? AppStrings.pause : AppStrings.playSurah,
+                            tooltip: _sesOynatiliyor
+                                ? AppStrings.pause
+                                : AppStrings.playSurah,
                           ),
                           IconButton(
-                            icon: Icon(Icons.skip_next, color: theme.primaryColor),
-                            onPressed: _aktifAyetIndex < _ayetler.length - 1 ? _nextAyah : null,
+                            icon: Icon(
+                              Icons.skip_next,
+                              color: theme.primaryColor,
+                            ),
+                            onPressed: _aktifAyetIndex < _ayetler.length - 1
+                                ? _nextAyah
+                                : null,
                             tooltip: AppStrings.next,
                           ),
                         ],
@@ -494,9 +581,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
               ),
 
               // Ana içerik
-              Expanded(
-                child: _buildMainContent(theme),
-              ),
+              Expanded(child: _buildMainContent(theme)),
             ],
           ),
         ),
@@ -570,9 +655,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           if (widget.surahModel.number != 9)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              sliver: SliverToBoxAdapter(
-                child: _buildBismillah(),
-              ),
+              sliver: SliverToBoxAdapter(child: _buildBismillah()),
             ),
 
           // Ayetler - Performans optimizasyonu için ListView.builder kullan
@@ -582,7 +665,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
               itemCount: _ayetler.length,
               itemBuilder: (context, index) {
                 final ayet = _ayetler[index];
-                final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
+                final isCurrentAudio =
+                    AudioManager.currentAudioUrl == ayet.audioUrl &&
+                    AudioManager.isPlaying;
                 final isSelected = _seciliAyetIndex == index;
 
                 return RepaintBoundary(
@@ -617,7 +702,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   /// Yer işaretli ayetleri göster
   void _showBookmarkedAyahs() {
     final provider = Provider.of<KuranProvider>(context, listen: false);
-    final bookmarkedKeys = provider.getBookmarkedAyahsForSurah(widget.surahModel.number);
+    final bookmarkedKeys = provider.getBookmarkedAyahsForSurah(
+      widget.surahModel.number,
+    );
 
     showModalBottomSheet(
       context: context,
@@ -640,7 +727,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                   title: Text('${AppStrings.ayah} $ayahNumber'),
                   onTap: () {
                     Navigator.pop(context);
-                    final index = _ayetler.indexWhere((a) => a.number == ayahNumber);
+                    final index = _ayetler.indexWhere(
+                      (a) => a.number == ayahNumber,
+                    );
                     if (index != -1) {
                       setState(() {
                         _aktifAyetIndex = index;
@@ -668,7 +757,8 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
-            labelText: '${AppStrings.ayahNumber} (1-${widget.surahModel.numberOfAyahs})',
+            labelText:
+                '${AppStrings.ayahNumber} (1-${widget.surahModel.numberOfAyahs})',
             border: const OutlineInputBorder(),
           ),
         ),
@@ -684,7 +774,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                   ayahNumber >= 1 &&
                   ayahNumber <= widget.surahModel.numberOfAyahs) {
                 Navigator.pop(context);
-                final index = _ayetler.indexWhere((a) => a.number == ayahNumber);
+                final index = _ayetler.indexWhere(
+                  (a) => a.number == ayahNumber,
+                );
                 if (index != -1) {
                   setState(() {
                     _aktifAyetIndex = index;

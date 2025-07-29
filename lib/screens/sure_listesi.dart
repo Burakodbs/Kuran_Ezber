@@ -336,7 +336,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
 
               return ListTile(
                 title: Text('${surah.turkishName} - ${AppStrings.ayah} $ayahNumber'),
-                subtitle: Text(surah.englishNameTranslation),
+                subtitle: Text('${surah.number}. Sûre • ${surah.numberOfAyahs} ${AppStrings.ayah}'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(

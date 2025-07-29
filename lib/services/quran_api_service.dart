@@ -8,7 +8,7 @@ class QuranApiService {
   static const String _baseUrl = 'http://api.alquran.cloud/v1';
   static const String _turkishEdition = 'tr.diyanet';
   static const String _arabicEdition = 'quran-uthmani';
-  static const String _audioEdition = 'ar.alafasy';
+  static const String _audioEdition = 'ar.ahmedajamy';
 
   /// Tüm surelerin listesini getirir
   static Future<List<SurahModel>> getSurahList() async {
@@ -85,7 +85,12 @@ class QuranApiService {
       final arabicAyahs = arabicEdition['ayahs'] as List;
       final turkishAyahs = turkishEdition?['ayahs'] as List?;
 
-      return arabicAyahs.asMap().entries.map((entry) {
+      // Tevbe suresi (9) hariç ilk ayeti atla (Bismillah duplikasyonunu önlemek için)
+      final filteredAyahs = surahNumber == 9 
+          ? arabicAyahs 
+          : arabicAyahs.skip(1).toList();
+
+      return filteredAyahs.asMap().entries.map((entry) {
         final index = entry.key;
         final arabicAyah = entry.value;
         
@@ -107,11 +112,14 @@ class QuranApiService {
           matchingAudio = audioMatches.isNotEmpty ? audioMatches.first : null;
         }
 
+        // Ayet numaralarını doğru şekilde ayarla
+        final ayahNumber = index + 1;
+
         return AyetModel.fromAlQuranCloudJsonWithIndex(
             arabicAyah,
             matchingTurkish,
             matchingAudio,
-            index + 1 // Sure içindeki ayet numarası (1'den başlar)
+            ayahNumber
         );
       }).toList();
     } catch (e) {
@@ -258,7 +266,7 @@ class QuranApiService {
         }
       }
 
-      return 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalAyahNumber.mp3';
+      return 'https://cdn.islamic.network/quran/audio/128/ar.ahmedajamy/$globalAyahNumber.mp3';
     } catch (e) {
       return null;
     }
@@ -301,9 +309,9 @@ class QuranApiService {
   /// Alternatif audio URL'leri
   static List<String> getAlternativeAudioUrls(int globalAyahNumber) {
     return [
-      'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalAyahNumber.mp3',
-      'https://cdn.islamic.network/quran/audio/64/ar.alafasy/$globalAyahNumber.mp3',
-      'https://cdn.alquran.cloud/media/audio/ayah/ar.alafasy/$globalAyahNumber',
+      'https://cdn.islamic.network/quran/audio/128/ar.ahmedajamy/$globalAyahNumber.mp3',
+      'https://cdn.islamic.network/quran/audio/64/ar.ahmedajamy/$globalAyahNumber.mp3',
+      'https://cdn.alquran.cloud/media/audio/ayah/ar.ahmedajamy/$globalAyahNumber',
       'https://cdn.islamic.network/quran/audio/128/ar.abdurrahmaansudais/$globalAyahNumber.mp3',
     ];
   }

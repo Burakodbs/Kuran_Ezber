@@ -197,7 +197,7 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                               textDirection: TextDirection.rtl,
                               style: TextStyle(
                                 fontSize: provider.arabicFontSize,
-                                fontFamily: 'UthmanicHafs',
+                                fontFamily: 'Amiri',
                                 color: Theme.of(context).primaryColor,
                                 height: 1.8,
                               ),

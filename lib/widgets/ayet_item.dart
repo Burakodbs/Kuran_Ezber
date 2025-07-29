@@ -121,7 +121,7 @@ class _AyetItemState extends State<AyetItem> {
                       ? theme.primaryColor
                       : theme.textTheme.bodyLarge?.color ?? Colors.black87,
                   fontWeight: widget.isPlaying ? FontWeight.w600 : FontWeight.w400,
-                  fontFamily: 'UthmanicHafs',
+                  fontFamily: 'Amiri',
                   wordSpacing: 3,
                   letterSpacing: 0.5,
                 ),
@@ -179,7 +179,7 @@ class _AyetItemState extends State<AyetItem> {
                     color: isPlaying
                         ? Colors.green.shade700
                         : theme.primaryColor,
-                    fontFamily: 'UthmanicHafs',
+                    fontFamily: 'Amiri',
                   ),
                 ),
               ),

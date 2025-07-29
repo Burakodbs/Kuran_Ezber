@@ -235,4 +235,5 @@ class AyetModel {
     urls.addAll(alternativeAudioUrls.where((url) => url != audioUrl));
     return urls;
   }
+
 }
