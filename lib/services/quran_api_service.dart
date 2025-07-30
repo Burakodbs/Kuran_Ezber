@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import '../models/ayet_model.dart';
 import '../models/surah_model.dart';
 import '../models/mushaf_page_model.dart';
+import '../utils/audio_url_helper.dart';
+import '../constants/app_constants.dart';
 
 class QuranApiService {
   static const String _baseUrl = 'http://api.alquran.cloud/v1';
@@ -85,10 +87,8 @@ class QuranApiService {
       final arabicAyahs = arabicEdition['ayahs'] as List;
       final turkishAyahs = turkishEdition?['ayahs'] as List?;
 
-      // Tevbe suresi (9) hariç ilk ayeti atla (Bismillah duplikasyonunu önlemek için)
-      final filteredAyahs = surahNumber == 9 
-          ? arabicAyahs 
-          : arabicAyahs.skip(1).toList();
+      // Tüm ayetleri dahil et - API zaten Bismillah'ı ayet olarak döndürmüyor
+      final filteredAyahs = arabicAyahs;
 
       return filteredAyahs.asMap().entries.map((entry) {
         final index = entry.key;
@@ -112,7 +112,7 @@ class QuranApiService {
           matchingAudio = audioMatches.isNotEmpty ? audioMatches.first : null;
         }
 
-        // Ayet numaralarını doğru şekilde ayarla
+        // Ayet numaralarını doğru şekilde ayarla (sure içindeki pozisyon)
         final ayahNumber = index + 1;
 
         return AyetModel.fromAlQuranCloudJsonWithIndex(
@@ -266,7 +266,11 @@ class QuranApiService {
         }
       }
 
-      return 'https://cdn.islamic.network/quran/audio/128/ar.ahmedajamy/$globalAyahNumber.mp3';
+      return AudioUrlHelper.getAudioUrl(
+        AppConstants.defaultAudioReciter,
+        surahNumber,
+        globalAyahNumber,
+      );
     } catch (e) {
       return null;
     }
@@ -306,14 +310,30 @@ class QuranApiService {
     return 0;
   }
 
+  /// Global ayet numarasından sure numarasını hesapla
+  static int _getSurahNumberFromGlobalAyah(int globalAyahNumber) {
+    int totalAyahs = 0;
+    
+    for (int surahNumber = 1; surahNumber <= 114; surahNumber++) {
+      final surahAyahCount = _getSurahAyahCount(surahNumber);
+      totalAyahs += surahAyahCount;
+      
+      if (globalAyahNumber <= totalAyahs) {
+        return surahNumber;
+      }
+    }
+    
+    return 1; // Fallback
+  }
+
   /// Alternatif audio URL'leri
   static List<String> getAlternativeAudioUrls(int globalAyahNumber) {
-    return [
-      'https://cdn.islamic.network/quran/audio/128/ar.ahmedajamy/$globalAyahNumber.mp3',
-      'https://cdn.islamic.network/quran/audio/64/ar.ahmedajamy/$globalAyahNumber.mp3',
-      'https://cdn.alquran.cloud/media/audio/ayah/ar.ahmedajamy/$globalAyahNumber',
-      'https://cdn.islamic.network/quran/audio/128/ar.abdurrahmaansudais/$globalAyahNumber.mp3',
-    ];
+    final surahNumber = _getSurahNumberFromGlobalAyah(globalAyahNumber);
+    return AudioUrlHelper.getAlternativeUrls(
+      AppConstants.defaultAudioReciter,
+      surahNumber,
+      globalAyahNumber,
+    );
   }
 
   /// Audio URL'sinin çalışıp çalışmadığını test et

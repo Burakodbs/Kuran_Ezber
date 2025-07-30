@@ -5,6 +5,8 @@ import '../utils/storage_helper.dart';
 import '../constants/app_strings.dart';
 import '../constants/app_constants.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_info.dart';
+import 'about_screen.dart';
 
 class AyarlarEkrani extends StatefulWidget {
   const AyarlarEkrani({super.key});
@@ -232,7 +234,7 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                 ListTile(
                   leading: const Icon(Icons.person),
                   title: Text(AppStrings.audioReciter),
-                  subtitle: Text(AppStrings.reciterAlafasy),
+                  subtitle: Text(AppStrings.reciterAhmedTalebHameed),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => _showQariDialog(),
                 ),
@@ -393,6 +395,17 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                   title: const Text('Gizlilik Politikası'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => _showPrivacyDialog(),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('Hakkında & Developer'),
+                  subtitle: Text('${AppInfo.appName} v${AppInfo.appVersion}'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AboutScreen()),
+                  ),
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -613,15 +626,28 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: Text(AppStrings.reciterAlafasy),
+              title: Text(AppStrings.reciterAhmedTalebHameed),
               subtitle: const Text('Varsayılan'),
               trailing: const Icon(Icons.check, color: Colors.green),
               selected: true,
             ),
             ListTile(
+              title: Text(AppStrings.reciterAlafasy),
+              subtitle: const Text('Alternatif'),
+              enabled: true,
+              onTap: () {
+                // Buraya reciter değiştirme kodunu ekleyebiliriz
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
               title: Text(AppStrings.reciterSudais),
-              subtitle: const Text('Yakında'),
-              enabled: false,
+              subtitle: const Text('Alternatif'),
+              enabled: true,
+              onTap: () {
+                // Buraya reciter değiştirme kodunu ekleyebiliriz
+                Navigator.pop(context);
+              },
             ),
             ListTile(
               title: Text(AppStrings.reciterGhamdi),

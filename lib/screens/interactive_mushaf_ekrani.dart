@@ -31,18 +31,19 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   static const Duration _audioDebounceDelay = Duration(milliseconds: 100);
   
   // Loop özellikleri
-  bool _loopMode = false;
-  int? _loopStartIndex;
-  int? _loopEndIndex;
-  int _loopCount = 0;
-  int _maxLoopCount = 3; // Varsayılan loop sayısı
-  bool _infiniteLoop = false;
+  bool _rangeLoopMode = false;
+  int? _rangeLoopStartIndex;
+  int? _rangeLoopEndIndex;
+  int _rangeLoopCount = 3; // Varsayılan tekrar sayısı
 
   @override
   void initState() {
     super.initState();
     _sureviYukle();
     Provider.of<KuranProvider>(context, listen: false).loadYerIsaretleri();
+    
+    // Loop durumunu yükle
+    AudioManager.loadLoopMode();
 
     // AudioManager state değişikliklerini dinle
     AudioManager.playingStateStream.listen((_) {
@@ -183,11 +184,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
       setState(() => _sesOynatiliyor = !_sesOynatiliyor);
 
       if (_sesOynatiliyor) {
-        if (_loopMode && _loopStartIndex != null && _loopEndIndex != null) {
-          await _playLoopedRange();
-        } else {
-          await _playNormalRange();
-        }
+        await _playNormalRange();
 
         if (mounted) {
           setState(() => _sesOynatiliyor = false);
@@ -225,40 +222,6 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     }
   }
 
-  /// Loop modunda aralık oynatma
-  Future<void> _playLoopedRange() async {
-    _loopCount = 0;
-    
-    while (_sesOynatiliyor && mounted && (_infiniteLoop || _loopCount < _maxLoopCount)) {
-      for (
-        int i = _loopStartIndex!;
-        i <= _loopEndIndex! && _sesOynatiliyor;
-        i++
-      ) {
-        if (!mounted) break;
-
-        setState(() => _aktifAyetIndex = i);
-        _scrollToAyah(i);
-
-        // Ayeti oynat ve tamamlanmasını bekle
-        await AudioManager.playAudioAndWait(_ayetler[i].audioUrl);
-
-        // Eğer hala oynatma modundaysak kısa bir ara ver
-        if (_sesOynatiliyor && mounted && i < _loopEndIndex!) {
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
-      }
-      
-      if (!_infiniteLoop) {
-        _loopCount++;
-      }
-      
-      // Loop bitişinde kısa ara
-      if (_sesOynatiliyor && mounted && (_infiniteLoop || _loopCount < _maxLoopCount)) {
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-    }
-  }
 
   /// Belirli bir ayete scroll yap
   void _scrollToAyah(int index) {
@@ -412,6 +375,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   @override
   void dispose() {
     AudioManager.stopAudio();
+    AudioManager.cancelRangeLoop();
     _scrollController.dispose();
     super.dispose();
   }
@@ -527,53 +491,93 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Flexible(
-                        child: Text(
-                          _ayetler.isNotEmpty &&
-                                  _aktifAyetIndex < _ayetler.length
-                              ? '${AppStrings.ayah} ${_ayetler[_aktifAyetIndex].number}/${widget.surahModel.numberOfAyahs}'
-                              : '${AppStrings.ayah} 1/${widget.surahModel.numberOfAyahs}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: theme.primaryColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _ayetler.isNotEmpty &&
+                                      _aktifAyetIndex < _ayetler.length
+                                  ? '${AppStrings.ayah} ${_ayetler[_aktifAyetIndex].number}/${widget.surahModel.numberOfAyahs}'
+                                  : '${AppStrings.ayah} 1/${widget.surahModel.numberOfAyahs}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: theme.primaryColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            // Range loop progress
+                            if (AudioManager.isRangeLoopMode)
+                              Text(
+                                'Tekrar: ${AudioManager.rangeLoopCount + 1}/${AudioManager.maxRangeLoopCount} '
+                                '(${(AudioManager.rangeLoopStart ?? 0) + 1}-${(AudioManager.rangeLoopEnd ?? 0) + 1})',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              Icons.skip_previous,
-                              color: theme.primaryColor,
-                            ),
-                            onPressed: _aktifAyetIndex > 0
-                                ? _previousAyah
-                                : null,
-                            tooltip: AppStrings.previous,
+                      // Kompakt audio kontrol paneli
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: theme.primaryColor.withValues(alpha: 0.2),
+                            width: 1,
                           ),
-                          IconButton(
-                            icon: Icon(
-                              _sesOynatiliyor ? Icons.pause : Icons.play_arrow,
-                              color: theme.primaryColor,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Previous
+                            _buildCompactButton(
+                              icon: Icons.skip_previous,
+                              onPressed: _aktifAyetIndex > 0 ? _previousAyah : null,
+                              isEnabled: _aktifAyetIndex > 0,
                             ),
-                            onPressed: _playFullSurah,
-                            tooltip: _sesOynatiliyor
-                                ? AppStrings.pause
-                                : AppStrings.playSurah,
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.skip_next,
-                              color: theme.primaryColor,
+                            const SizedBox(width: 4),
+                            // Play/Pause
+                            _buildCompactButton(
+                              icon: _sesOynatiliyor ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                              onPressed: _playFullSurah,
+                              isEnabled: true,
+                              isPrimary: true,
                             ),
-                            onPressed: _aktifAyetIndex < _ayetler.length - 1
-                                ? _nextAyah
-                                : null,
-                            tooltip: AppStrings.next,
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            // Next
+                            _buildCompactButton(
+                              icon: Icons.skip_next,
+                              onPressed: _aktifAyetIndex < _ayetler.length - 1 ? _nextAyah : null,
+                              isEnabled: _aktifAyetIndex < _ayetler.length - 1,
+                            ),
+                            const SizedBox(width: 8),
+                            // Loop controls
+                            _buildCompactButton(
+                              icon: AudioManager.isLoopMode ? Icons.repeat_one : Icons.repeat_one_outlined,
+                              onPressed: () {
+                                AudioManager.toggleLoopMode();
+                                setState(() {});
+                              },
+                              isEnabled: true,
+                              isActive: AudioManager.isLoopMode,
+                              activeColor: Colors.green,
+                            ),
+                            const SizedBox(width: 4),
+                            _buildCompactButton(
+                              icon: _rangeLoopMode ? Icons.repeat : Icons.repeat_outlined,
+                              onPressed: _showRangeLoopDialog,
+                              isEnabled: true,
+                              isActive: _rangeLoopMode,
+                              activeColor: Colors.orange,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -788,6 +792,243 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             child: Text(AppStrings.ok),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Aralık loop dialogu
+  void _showRangeLoopDialog() {
+    int tempStartIndex = _rangeLoopStartIndex ?? 0;
+    int tempEndIndex = _rangeLoopEndIndex ?? (_ayetler.length - 1);
+    int tempLoopCount = _rangeLoopCount;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.repeat, color: Theme.of(context).primaryColor),
+              const SizedBox(width: 8),
+              const Text('Aralık Tekrar Ayarları'),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Başlangıç ayeti
+                ListTile(
+                  leading: const Icon(Icons.play_arrow),
+                  title: const Text('Başlangıç Ayeti'),
+                  subtitle: Text('${tempStartIndex + 1}. Ayet'),
+                  trailing: SizedBox(
+                    width: 100,
+                    child: Slider(
+                      value: tempStartIndex.toDouble(),
+                      min: 0,
+                      max: (_ayetler.length - 1).toDouble(),
+                      divisions: _ayetler.length - 1,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempStartIndex = value.toInt();
+                          if (tempStartIndex > tempEndIndex) {
+                            tempEndIndex = tempStartIndex;
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                
+                // Bitiş ayeti
+                ListTile(
+                  leading: const Icon(Icons.stop),
+                  title: const Text('Bitiş Ayeti'),
+                  subtitle: Text('${tempEndIndex + 1}. Ayet'),
+                  trailing: SizedBox(
+                    width: 100,
+                    child: Slider(
+                      value: tempEndIndex.toDouble(),
+                      min: tempStartIndex.toDouble(),
+                      max: (_ayetler.length - 1).toDouble(),
+                      divisions: _ayetler.length - 1 - tempStartIndex,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempEndIndex = value.toInt();
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                
+                const Divider(),
+                
+                // Tekrar sayısı
+                ListTile(
+                  leading: const Icon(Icons.loop),
+                  title: const Text('Tekrar Sayısı'),
+                  subtitle: Text('$tempLoopCount defa'),
+                  trailing: SizedBox(
+                    width: 100,
+                    child: Slider(
+                      value: tempLoopCount.toDouble(),
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempLoopCount = value.toInt();
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                
+                const Divider(),
+                
+                // Bilgi
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, 
+                           color: Theme.of(context).primaryColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${tempEndIndex - tempStartIndex + 1} ayet, $tempLoopCount defa tekrar edilecek',
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (_rangeLoopMode)
+              TextButton(
+                onPressed: () {
+                  _stopRangeLoop();
+                  Navigator.pop(context);
+                },
+                child: const Text('Durdur'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(AppStrings.cancel),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _startRangeLoop(tempStartIndex, tempEndIndex, tempLoopCount);
+                Navigator.pop(context);
+              },
+              child: const Text('Başlat'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Aralık loop başlat
+  void _startRangeLoop(int startIndex, int endIndex, int loopCount) {
+    setState(() {
+      _rangeLoopStartIndex = startIndex;
+      _rangeLoopEndIndex = endIndex;
+      _rangeLoopCount = loopCount;
+      _rangeLoopMode = true;
+    });
+
+    // Audio URL'lerini hazırla
+    final audioUrls = _ayetler.map((ayet) => ayet.audioUrl).toList();
+    
+    // AudioManager'a aralık ayarla
+    AudioManager.setRangeLoop(
+      audioUrls: audioUrls,
+      startIndex: startIndex,
+      endIndex: endIndex,
+      repeatCount: loopCount,
+    );
+    
+    // Loop başlat
+    AudioManager.startRangeLoop(
+      onComplete: () {
+        if (mounted) {
+          setState(() {
+            _rangeLoopMode = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Aralık tekrar tamamlandı'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  /// Aralık loop durdur
+  void _stopRangeLoop() {
+    setState(() {
+      _rangeLoopMode = false;
+      _rangeLoopStartIndex = null;
+      _rangeLoopEndIndex = null;
+    });
+    
+    AudioManager.cancelRangeLoop();
+  }
+
+  /// Kompakt audio butonu
+  Widget _buildCompactButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required bool isEnabled,
+    bool isPrimary = false,
+    bool isActive = false,
+    Color? activeColor,
+  }) {
+    final theme = Theme.of(context);
+    
+    Color getColor() {
+      if (!isEnabled) return theme.disabledColor;
+      if (isActive && activeColor != null) return activeColor;
+      if (isPrimary) return theme.primaryColor;
+      return theme.textTheme.bodyMedium?.color ?? theme.primaryColor;
+    }
+
+    return InkWell(
+      onTap: isEnabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: isPrimary ? 36 : 32,
+        height: isPrimary ? 36 : 32,
+        decoration: BoxDecoration(
+          color: isActive && activeColor != null 
+              ? activeColor.withValues(alpha: 0.1) 
+              : (isPrimary ? theme.primaryColor.withValues(alpha: 0.1) : Colors.transparent),
+          borderRadius: BorderRadius.circular(16),
+          border: isActive ? Border.all(
+            color: activeColor ?? theme.primaryColor,
+            width: 1,
+          ) : null,
+        ),
+        child: Icon(
+          icon,
+          size: isPrimary ? 24 : 20,
+          color: getColor(),
+        ),
       ),
     );
   }

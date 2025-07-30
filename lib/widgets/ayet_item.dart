@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/kuran_provider.dart';
 import '../models/ayet_model.dart';
+import '../utils/audio_manager.dart';
 
 class AyetItem extends StatefulWidget {
   final AyetModel ayet;
@@ -241,6 +242,15 @@ class _AyetItemState extends State<AyetItem> {
             icon: widget.isPlaying ? Icons.pause : Icons.play_arrow,
             onPressed: _handlePlayButtonPress,
             color: widget.isPlaying ? Colors.green : theme.primaryColor,
+          ),
+          _buildQuickAction(
+            icon: AudioManager.isLoopMode ? Icons.repeat : Icons.repeat_outlined,
+            onPressed: () {
+              setState(() {
+                AudioManager.toggleLoopMode();
+              });
+            },
+            color: AudioManager.isLoopMode ? Colors.green : theme.primaryColor,
           ),
           _buildQuickAction(
             icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,

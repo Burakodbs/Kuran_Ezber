@@ -3,11 +3,11 @@ class AppConstants {
   static const String baseUrl = 'http://api.alquran.cloud/v1';
   static const String turkishEdition = 'tr.diyanet';
   static const String arabicEdition = 'quran-uthmani';
-  static const String audioEdition = 'ar.alafasy';
+  static const String audioEdition = 'ar.ahmedajamy';
 
   // Alternative API URLs
   static const String backupApiUrl = 'https://api.quran.com/api/v4';
-  static const String audioBaseUrl = 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/';
+  static const String audioBaseUrl = 'https://archive.org/download/HaramainHameed/';
 
   // Cache settings
   static const Duration cacheExpiration = Duration(hours: 24);
@@ -27,8 +27,8 @@ class AppConstants {
   static const List<String> supportedAudioFormats = ['mp3', 'ogg'];
 
   // App settings
-  static const String appVersion = '1.0.0';
-  static const String developer = 'KSU Elektronik Mushaf Ekibi';
+  static const String appVersion = '2.0.0';
+  static const String developer = 'Burak Odabaş';
   static const int currentDbVersion = 1;
 
   // Pagination
@@ -48,7 +48,16 @@ class AppConstants {
   static const bool defaultTranslationEnabled = false;
   static const bool defaultDarkMode = false;
   static const String defaultTranslationLanguage = 'tr.diyanet';
-  static const String defaultAudioReciter = 'ar.alafasy';
+  static const String defaultAudioReciter = 'ahmed_taleb_hameed';
+  
+  // Audio reciters
+  static const Map<String, String> audioReciters = {
+    'ahmed_taleb_hameed': 'Ahmed Taleb Hameed',
+    'ar.alafasy': 'Mishary Rashid Alafasy',
+    'ar.ahmedajamy': 'Ahmed ibn Ali al-Ajamy',
+    'ar.abdurrahmaansudais': 'Abdul Rahman Al-Sudais',
+    'ar.saadalghamdi': 'Saad Al-Ghamdi',
+  };
 
   // Network retry settings
   static const int maxRetryAttempts = 3;

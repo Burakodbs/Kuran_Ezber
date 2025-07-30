@@ -1,9 +1,9 @@
 class AppStrings {
   // App
-  static const String appTitle = 'Kuran Ezber - KSU Electronic Mushaf';
-  static const String appShortTitle = 'KSU E-Mushaf';
-  static const String version = '1.0.0';
-  static const String developer = 'KSU Elektronik Mushaf Ekibi';
+  static const String appTitle = 'Kuran Ezber';
+  static const String appShortTitle = 'Kuran Ezber';
+  static const String version = '2.0.0';
+  static const String developer = 'Burak Odabaş';
 
   // Navigation
   static const String home = 'Ana Sayfa';
@@ -97,6 +97,7 @@ class AppStrings {
 
   // Audio reciters
   static const String reciterAlafasy = 'Mishary Rashid Alafasy';
+  static const String reciterAhmedTalebHameed = 'Ahmed Taleb Hameed';
   static const String reciterSudais = 'Abdul Rahman Al-Sudais';
   static const String reciterGhamdi = 'Saad Al-Ghamdi';
 

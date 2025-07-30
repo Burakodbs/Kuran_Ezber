@@ -2,6 +2,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'storage_helper.dart';
 
 class AudioManager {
   static final AudioManager _instance = AudioManager._internal();
@@ -16,6 +17,14 @@ class AudioManager {
   static Duration _totalDuration = Duration.zero;
   static double _volume = 1.0;
   static double _playbackSpeed = 1.0;
+  static bool _isLoopMode = false;
+  static bool _isRangeLoopMode = false;
+  static int? _rangeLoopStart;
+  static int? _rangeLoopEnd;
+  static int _rangeLoopCount = 0;
+  static int _maxRangeLoopCount = 3;
+  static List<String>? _rangeLoopUrls;
+  static int _currentRangeIndex = 0;
   static VoidCallback? _currentCompletionCallback;
   static StreamSubscription<PlayerState>? _stateSubscription;
   static StreamSubscription<Duration>? _positionSubscription;
@@ -48,6 +57,13 @@ class AudioManager {
   static Duration get totalDuration => _totalDuration;
   static double get volume => _volume;
   static double get playbackSpeed => _playbackSpeed;
+  static bool get isLoopMode => _isLoopMode;
+  static bool get isRangeLoopMode => _isRangeLoopMode;
+  static int? get rangeLoopStart => _rangeLoopStart;
+  static int? get rangeLoopEnd => _rangeLoopEnd;
+  static int get rangeLoopCount => _rangeLoopCount;
+  static int get maxRangeLoopCount => _maxRangeLoopCount;
+  static int get currentRangeIndex => _currentRangeIndex;
 
   // Streams
   static Stream<bool> get playingStateStream => _playingStateController.stream;
@@ -101,19 +117,66 @@ class AudioManager {
           _currentCompletionCallback = null;
           break;
         case PlayerState.completed:
-          _isPlaying = false;
-          _isPaused = false;
-          _currentAudioUrl = null;
-          _currentPosition = Duration.zero;
-          if (!_urlController.isClosed) {
-            _urlController.add(null);
-          }
-          
-          // Call the completion callback if it exists
-          final callback = _currentCompletionCallback;
-          _currentCompletionCallback = null;
-          if (callback != null) {
-            Future.microtask(() => callback());
+          if (_isRangeLoopMode && _rangeLoopUrls != null && _rangeLoopUrls!.isNotEmpty) {
+            // Range loop mode - play next in range or restart range
+            Future.microtask(() async {
+              try {
+                _currentRangeIndex++;
+                
+                if (_currentRangeIndex >= _rangeLoopUrls!.length) {
+                  // End of range reached
+                  _rangeLoopCount++;
+                  _currentRangeIndex = 0;
+                  
+                  if (_rangeLoopCount >= _maxRangeLoopCount) {
+                    // All loops completed
+                    await _stopRangeLoop();
+                    final callback = _currentCompletionCallback;
+                    _currentCompletionCallback = null;
+                    if (callback != null) {
+                      callback();
+                    }
+                    return;
+                  }
+                }
+                
+                // Play next audio in range
+                await _audioPlayer!.play(UrlSource(_rangeLoopUrls![_currentRangeIndex]));
+                _currentAudioUrl = _rangeLoopUrls![_currentRangeIndex];
+                if (!_urlController.isClosed) {
+                  _urlController.add(_currentAudioUrl);
+                }
+              } catch (e) {
+                debugPrint('Range loop error: $e');
+                _handlePlaybackError(e);
+              }
+            });
+          } else if (_isLoopMode && _currentAudioUrl != null) {
+            // Single loop mode - restart current audio
+            Future.microtask(() async {
+              try {
+                await _audioPlayer!.play(UrlSource(_currentAudioUrl!));
+              } catch (e) {
+                debugPrint('Loop restart error: $e');
+                _handlePlaybackError(e);
+              }
+            });
+          } else {
+            // Normal completion behavior
+            _isPlaying = false;
+            _isPaused = false;
+            _currentAudioUrl = null;
+            _currentPosition = Duration.zero;
+            if (!_urlController.isClosed) {
+              _urlController.add(null);
+            }
+            
+            // Call the completion callback if it exists
+            final callback = _currentCompletionCallback;
+            _currentCompletionCallback = null;
+            if (callback != null) {
+              Future.microtask(() => callback());
+            }
           }
           break;
         default:
@@ -329,6 +392,113 @@ class AudioManager {
       }
     } catch (e) {
       debugPrint('Audio playback speed error: $e');
+    }
+  }
+
+  /// Loop modunu ayarla
+  static void setLoopMode(bool enabled) {
+    _isLoopMode = enabled;
+    debugPrint('Loop mode ${enabled ? 'enabled' : 'disabled'}');
+    
+    // Loop durumunu kaydet
+    StorageHelper.setAudioLoopMode(enabled);
+  }
+
+  /// Loop modunu toggle et
+  static void toggleLoopMode() {
+    _isLoopMode = !_isLoopMode;
+    debugPrint('Loop mode ${_isLoopMode ? 'enabled' : 'disabled'}');
+    
+    // Loop durumunu kaydet
+    StorageHelper.setAudioLoopMode(_isLoopMode);
+  }
+
+  /// Kayıtlı loop durumunu yükle
+  static Future<void> loadLoopMode() async {
+    _isLoopMode = await StorageHelper.getAudioLoopMode();
+  }
+
+  /// Aralık loop ayarla
+  static void setRangeLoop({
+    required List<String> audioUrls,
+    required int startIndex,
+    required int endIndex,
+    int repeatCount = 3,
+  }) {
+    if (startIndex >= 0 && endIndex >= startIndex && endIndex < audioUrls.length) {
+      _rangeLoopUrls = audioUrls.sublist(startIndex, endIndex + 1);
+      _rangeLoopStart = startIndex;
+      _rangeLoopEnd = endIndex;
+      _maxRangeLoopCount = repeatCount;
+      _rangeLoopCount = 0;
+      _currentRangeIndex = 0;
+      _isRangeLoopMode = true;
+      
+      debugPrint('Range loop set: ${startIndex + 1}-${endIndex + 1} (${_rangeLoopUrls!.length} ayets, $repeatCount times)');
+    }
+  }
+
+  /// Aralık loop başlat
+  static Future<void> startRangeLoop({VoidCallback? onComplete}) async {
+    if (_rangeLoopUrls == null || _rangeLoopUrls!.isEmpty) {
+      debugPrint('No range loop configured');
+      return;
+    }
+
+    try {
+      await _initializePlayer();
+      
+      // Stop current audio if playing
+      if (_isPlaying) {
+        await stopAudio();
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
+      _currentCompletionCallback = onComplete;
+      _currentRangeIndex = 0;
+      _rangeLoopCount = 0;
+      
+      // Start playing first audio in range
+      await _audioPlayer!.play(UrlSource(_rangeLoopUrls![0]));
+      _currentAudioUrl = _rangeLoopUrls![0];
+      
+      if (!_urlController.isClosed) {
+        _urlController.add(_currentAudioUrl);
+      }
+
+      debugPrint('Range loop started: ${_rangeLoopCount + 1}/$_maxRangeLoopCount');
+    } catch (e) {
+      debugPrint('Range loop start error: $e');
+      _handlePlaybackError(e);
+    }
+  }
+
+  /// Aralık loop durdur
+  static Future<void> _stopRangeLoop() async {
+    _isRangeLoopMode = false;
+    _rangeLoopUrls = null;
+    _rangeLoopStart = null;
+    _rangeLoopEnd = null;
+    _rangeLoopCount = 0;
+    _currentRangeIndex = 0;
+    _maxRangeLoopCount = 3;
+    
+    debugPrint('Range loop stopped');
+  }
+
+  /// Aralık loop iptal et
+  static Future<void> cancelRangeLoop() async {
+    if (_isRangeLoopMode) {
+      await stopAudio();
+      await _stopRangeLoop();
+    }
+  }
+
+  /// Tekrar sayısını ayarla
+  static void setRangeLoopCount(int count) {
+    if (count > 0) {
+      _maxRangeLoopCount = count;
+      debugPrint('Range loop count set to: $count');
     }
   }
 
@@ -608,6 +778,7 @@ class AudioManager {
       _totalDuration = Duration.zero;
       _volume = 1.0;
       _playbackSpeed = 1.0;
+      _isLoopMode = false;
       _lastPlayCall = null;
       _isProcessingPlayRequest = false;
 
@@ -629,6 +800,7 @@ class AudioManager {
     _totalDuration = Duration.zero;
     _volume = 1.0;
     _playbackSpeed = 1.0;
+    _isLoopMode = false;
     
     if (!_positionController.isClosed) {
       _positionController.add(Duration.zero);
@@ -648,6 +820,13 @@ class AudioManager {
       'totalDuration': _totalDuration.inSeconds,
       'volume': _volume,
       'playbackSpeed': _playbackSpeed,
+      'isLoopMode': _isLoopMode,
+      'isRangeLoopMode': _isRangeLoopMode,
+      'rangeLoopStart': _rangeLoopStart,
+      'rangeLoopEnd': _rangeLoopEnd,
+      'rangeLoopCount': _rangeLoopCount,
+      'maxRangeLoopCount': _maxRangeLoopCount,
+      'currentRangeIndex': _currentRangeIndex,
       'progress': progress,
       'hasPlayer': _audioPlayer != null,
       'isDisposed': _isDisposed,

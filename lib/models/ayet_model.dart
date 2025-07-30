@@ -1,4 +1,6 @@
 import 'package:http/http.dart' as http;
+import '../utils/audio_url_helper.dart';
+import '../constants/app_constants.dart';
 
 class AyetModel {
   final int number; // Sure içindeki ayet numarası (1'den başlar)
@@ -45,9 +47,13 @@ class AyetModel {
       }
     }
 
-    // Eğer audio URL yoksa, global number ile oluştur
+    // Eğer audio URL yoksa, varsayılan reciter ile oluştur
     if (audioUrl.isEmpty) {
-      audioUrl = 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalNumber.mp3';
+      audioUrl = AudioUrlHelper.getAudioUrl(
+        AppConstants.defaultAudioReciter,
+        surahNumber,
+        globalNumber,
+      );
     }
 
     return AyetModel(
@@ -83,9 +89,13 @@ class AyetModel {
       }
     }
 
-    // Eğer audio URL yoksa, global number ile oluştur
+    // Eğer audio URL yoksa, varsayılan reciter ile oluştur
     if (audioUrl.isEmpty) {
-      audioUrl = 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalNumber.mp3';
+      audioUrl = AudioUrlHelper.getAudioUrl(
+        AppConstants.defaultAudioReciter,
+        surahNumber,
+        globalNumber,
+      );
     }
 
     return AyetModel(
@@ -143,20 +153,20 @@ class AyetModel {
       arabic: json['text_uthmani'] ?? '',
       turkish: translation,
       globalNumber: globalNumber,
-      audioUrl: 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalNumber.mp3',
+      audioUrl: AudioUrlHelper.getAudioUrl(
+        AppConstants.defaultAudioReciter,
+        chapterId,
+        globalNumber,
+      ),
     );
   }
 
   // Alternatif audio URL'lerini getir
-  List<String> get alternativeAudioUrls => [
-    'https://cdn.islamic.network/quran/audio/128/ar.alafasy/$globalNumber.mp3',
-    'https://cdn.islamic.network/quran/audio/64/ar.alafasy/$globalNumber.mp3',
-    'https://cdn.alquran.cloud/media/audio/ayah/ar.alafasy/$globalNumber',
-    'https://everyayah.com/data/AlAfasy_128kbps/$globalNumber.mp3',
-    'https://cdn.islamic.network/quran/audio/128/ar.abdurrahmaansudais/$globalNumber.mp3',
-    'https://cdn.islamic.network/quran/audio/128/ar.hudhaify/$globalNumber.mp3',
-    'https://audio.qurancdn.com/ar.alafasy/$globalNumber.mp3',
-  ];
+  List<String> get alternativeAudioUrls => AudioUrlHelper.getAlternativeUrls(
+    AppConstants.defaultAudioReciter,
+    surahNumber,
+    globalNumber,
+  );
 
   // Model'i JSON'a çevirme
   Map<String, dynamic> toJson() {
