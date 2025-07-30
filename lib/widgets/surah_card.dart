@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/surah_model.dart';
+import '../constants/app_colors.dart';
 
 class SurahCard extends StatelessWidget {
   final SurahModel sure;
@@ -13,8 +14,6 @@ class SurahCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return RepaintBoundary(
       child: Material(
@@ -22,23 +21,21 @@ class SurahCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.white.withOpacity(0.1),
-          highlightColor: Colors.white.withOpacity(0.05),
+          splashColor: Colors.white.withValues(alpha: 0.1),
+          highlightColor: Colors.white.withValues(alpha: 0.05),
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: isDark
-                    ? [Color(0xFF0D2E21), Color(0xFF1B4F3A)]
-                    : [Color(0xFF1B4F3A), Color(0xFF2E7D32)],
+                colors: AppColors.getPrimaryGradient(context),
               ),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x1A000000),
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -90,7 +87,7 @@ class SurahCard extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 10,
-                        fontFamily: 'UthmanicHafs',
+                        fontFamily: 'Amiri',
                       ),
                       textAlign: TextAlign.center,
                       maxLines: 1,

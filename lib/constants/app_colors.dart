@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Ana Renkler
-  static const Color primary = Color(0xFF1B4F3A);
-  static const Color primaryDark = Color(0xFF0D2E21);
-  static const Color secondary = Color(0xFF2E7D32);
-  static const Color accent = Color(0xFF4CAF50);
+  // Modern Ana Renkler - Daha çağdaş ve profesyonel
+  static const Color primary = Color(0xFF2C3E50); // Koyu lacivert-gri
+  static const Color primaryDark = Color(0xFF1A252F);
+  static const Color secondary = Color(0xFF3498DB); // Modern mavi
+  static const Color accent = Color(0xFFE74C3C); // Vurgu rengi kırmızı
+  static const Color gold = Color(0xFFFFD700); // Altın rengi
+  static const Color emerald = Color(0xFF27AE60); // Zümrüt yeşili
 
-  // Açık Tema Renkleri
-  static const Color lightBackground = Color(0xFFF8F8F8);
-  static const Color lightSurface = Colors.white;
-  static const Color lightCard = Colors.white;
-  static const Color lightText = Colors.black87;
-  static const Color lightTextSecondary = Colors.black54;
+  // Modern Açık Tema Renkleri
+  static const Color lightBackground = Color(0xFFFAFAFA);
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightCard = Color(0xFFFFFFFF);
+  static const Color lightText = Color(0xFF2C3E50);
+  static const Color lightTextSecondary = Color(0xFF7F8C8D);
 
-  // Koyu Tema Renkleri
-  static const Color darkBackground = Color(0xFF121212);
-  static const Color darkSurface = Color(0xFF1E1E1E);
-  static const Color darkCard = Color(0xFF2D2D2D);
-  static const Color darkText = Colors.white;
-  static const Color darkTextSecondary = Colors.white70;
+  // Modern Koyu Tema Renkleri
+  static const Color darkBackground = Color(0xFF1A1A1A);
+  static const Color darkSurface = Color(0xFF2C2C2C);
+  static const Color darkCard = Color(0xFF3A3A3A);
+  static const Color darkText = Color(0xFFECF0F1);
+  static const Color darkTextSecondary = Color(0xFFBDC3C7);
 
   // Durum Renkleri
   static const Color success = Color(0xFF4CAF50);
@@ -34,20 +36,30 @@ class AppColors {
   static const Color hoveredAyah = Color(0xFFFFEB3B);
   static const Color bookmarked = Color(0xFFF44336);
 
-  // Gradient Renkleri
+  // Modern Gradient Renkleri
   static const List<Color> primaryGradient = [
-    Color(0xFF1B4F3A),
-    Color(0xFF2E7D32),
+    Color(0xFF2C3E50),
+    Color(0xFF3498DB),
   ];
 
   static const List<Color> primaryGradientDark = [
-    Color(0xFF0D2E21),
-    Color(0xFF1B4F3A),
+    Color(0xFF1A252F),
+    Color(0xFF2C3E50),
   ];
 
   static const List<Color> accentGradient = [
-    Color(0xFF4CAF50),
-    Color(0xFF66BB6A),
+    Color(0xFFE74C3C),
+    Color(0xFFF39C12),
+  ];
+
+  static const List<Color> goldGradient = [
+    Color(0xFFFFD700),
+    Color(0xFFFFA500),
+  ];
+
+  static const List<Color> emeraldGradient = [
+    Color(0xFF27AE60),
+    Color(0xFF2ECC71),
   ];
 
   // Opaklık Değerleri
@@ -60,9 +72,9 @@ class AppColors {
   static const double opacity90 = 0.9;
 
   // Gölge Renkleri
-  static Color shadowLight = Colors.black.withOpacity(0.1);
-  static Color shadowMedium = Colors.black.withOpacity(0.2);
-  static Color shadowHeavy = Colors.black.withOpacity(0.3);
+  static Color shadowLight = Colors.black.withValues(alpha: 0.1);
+  static Color shadowMedium = Colors.black.withValues(alpha: 0.2);
+  static Color shadowHeavy = Colors.black.withValues(alpha: 0.3);
 
   // Özel Renkler (Context'e göre)
   static Color getBackgroundColor(BuildContext context) {
@@ -107,14 +119,12 @@ class AppColors {
     bool isSelected = false,
     bool isHovered = false,
   }) {
-    final theme = Theme.of(context);
-
     if (isPlaying) {
-      return primary.withOpacity(0.15);
+      return primary.withValues(alpha: 0.15);
     } else if (isSelected) {
-      return primary.withOpacity(0.08);
+      return primary.withValues(alpha: 0.08);
     } else if (isHovered) {
-      return warning.withOpacity(0.1);
+      return warning.withValues(alpha: 0.1);
     }
 
     return getCardColor(context);

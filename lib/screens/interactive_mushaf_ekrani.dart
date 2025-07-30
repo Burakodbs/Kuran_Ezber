@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/ayet_model.dart';
-import '../providers/kuran_provider.dart';
-import '../models/surah_model.dart';
-import '../widgets/ayet_item.dart';
-import '../utils/audio_manager.dart';
-import '../constants/app_strings.dart';
+
 import '../constants/app_constants.dart';
+import '../constants/app_strings.dart';
+import '../models/ayet_model.dart';
+import '../models/surah_model.dart';
+import '../providers/kuran_provider.dart';
+import '../utils/audio_manager.dart';
+import '../widgets/ayet_item.dart';
 
 class InteractiveMushafEkrani extends StatefulWidget {
   final SurahModel surahModel;
@@ -14,7 +15,8 @@ class InteractiveMushafEkrani extends StatefulWidget {
   const InteractiveMushafEkrani({super.key, required this.surahModel});
 
   @override
-  _InteractiveMushafEkraniState createState() => _InteractiveMushafEkraniState();
+  State<InteractiveMushafEkrani> createState() =>
+      _InteractiveMushafEkraniState();
 }
 
 class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
@@ -25,12 +27,32 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   int _aktifAyetIndex = 0;
   bool _sesOynatiliyor = false;
   int? _seciliAyetIndex;
+  DateTime? _lastAudioPlayCall;
+  static const Duration _audioDebounceDelay = Duration(milliseconds: 100);
+  
+  // Loop özellikleri
+  bool _rangeLoopMode = false;
+  int? _rangeLoopStartIndex;
+  int? _rangeLoopEndIndex;
+  int _rangeLoopCount = 3; // Varsayılan tekrar sayısı
 
   @override
   void initState() {
     super.initState();
     _sureviYukle();
     Provider.of<KuranProvider>(context, listen: false).loadYerIsaretleri();
+    
+    // Loop durumunu yükle
+    AudioManager.loadLoopMode();
+
+    // AudioManager state değişikliklerini dinle
+    AudioManager.playingStateStream.listen((_) {
+      if (mounted) setState(() {});
+    });
+
+    AudioManager.urlStream.listen((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   /// Sureyi ve ayetlerini yükle
@@ -69,9 +91,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
     if (errorString.contains('timeout')) {
       return AppStrings.timeoutError;
-    } else if (errorString.contains('socket') || errorString.contains('network')) {
+    } else if (errorString.contains('socket') ||
+        errorString.contains('network')) {
       return AppStrings.networkError;
-    } else if (errorString.contains('404') || errorString.contains('not found')) {
+    } else if (errorString.contains('404') ||
+        errorString.contains('not found')) {
       return AppStrings.notFoundError;
     } else if (errorString.contains('500') || errorString.contains('server')) {
       return AppStrings.serverError;
@@ -96,7 +120,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             _aktifAyetIndex = index;
           });
 
-          Future.delayed(const Duration(milliseconds: 300), () {
+          Future.delayed(const Duration(milliseconds: 100), () {
             if (mounted && _scrollController.hasClients) {
               _scrollToAyah(index);
             }
@@ -110,12 +134,28 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
   /// Ayet sesini oynat
   Future<void> _playAyetAudio(AyetModel ayet) async {
+    // Debounce rapid calls to prevent multiple concurrent audio streams
+    final now = DateTime.now();
+    if (_lastAudioPlayCall != null &&
+        now.difference(_lastAudioPlayCall!) < _audioDebounceDelay) {
+      debugPrint('InteractiveMushaf: Debouncing rapid audio play call');
+      return;
+    }
+
+    _lastAudioPlayCall = now;
+
     try {
+      // Önce mevcut sesi durdur
+      if (AudioManager.isPlaying) {
+        await AudioManager.stopAudio();
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
       await AudioManager.playAudio(ayet.audioUrl, () {
         if (mounted) {
           setState(() {});
         }
-      });
+      }, fallbackUrls: ayet.alternativeAudioUrls);
 
       if (mounted) {
         setState(() {});
@@ -123,28 +163,6 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     } catch (e) {
       debugPrint('Audio play error: $e');
       _showErrorSnackBar(AppStrings.audioError);
-      await _tryAlternativeAudio(ayet);
-    }
-  }
-
-  /// Alternatif audio URL'lerini dene
-  Future<void> _tryAlternativeAudio(AyetModel ayet) async {
-    try {
-      final workingUrl = await ayet.findWorkingAudioUrl();
-      if (workingUrl != null) {
-        await AudioManager.playAudio(workingUrl, () {
-          if (mounted) {
-            setState(() {});
-          }
-        });
-
-        _showSuccessSnackBar('Alternatif ses kaynağı bulundu');
-      } else {
-        _showErrorSnackBar('Hiçbir ses kaynağı çalışmıyor');
-      }
-    } catch (e) {
-      debugPrint('Alternative audio error: $e');
-      _showErrorSnackBar('Alternatif ses de yüklenemedi');
     }
   }
 
@@ -152,25 +170,21 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   Future<void> _playFullSurah() async {
     if (_ayetler.isEmpty) return;
 
+    // Debounce rapid full surah play calls
+    final now = DateTime.now();
+    if (_lastAudioPlayCall != null &&
+        now.difference(_lastAudioPlayCall!) < _audioDebounceDelay) {
+      debugPrint('InteractiveMushaf: Debouncing rapid full surah play call');
+      return;
+    }
+
+    _lastAudioPlayCall = now;
+
     try {
       setState(() => _sesOynatiliyor = !_sesOynatiliyor);
 
       if (_sesOynatiliyor) {
-        for (int i = _aktifAyetIndex; i < _ayetler.length && _sesOynatiliyor; i++) {
-          if (!mounted) break;
-
-          setState(() => _aktifAyetIndex = i);
-          _scrollToAyah(i);
-          await _playAyetAudio(_ayetler[i]);
-
-          while (AudioManager.isPlaying && _sesOynatiliyor && mounted) {
-            await Future.delayed(const Duration(milliseconds: 100));
-          }
-
-          if (_sesOynatiliyor && mounted) {
-            await Future.delayed(const Duration(milliseconds: 500));
-          }
-        }
+        await _playNormalRange();
 
         if (mounted) {
           setState(() => _sesOynatiliyor = false);
@@ -186,6 +200,29 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     }
   }
 
+  /// Normal aralık oynatma
+  Future<void> _playNormalRange() async {
+    for (
+      int i = _aktifAyetIndex;
+      i < _ayetler.length && _sesOynatiliyor;
+      i++
+    ) {
+      if (!mounted) break;
+
+      setState(() => _aktifAyetIndex = i);
+      _scrollToAyah(i);
+
+      // Ayeti oynat ve tamamlanmasını bekle
+      await AudioManager.playAudioAndWait(_ayetler[i].audioUrl);
+
+      // Eğer hala oynatma modundaysak kısa bir ara ver
+      if (_sesOynatiliyor && mounted && i < _ayetler.length - 1) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+  }
+
+
   /// Belirli bir ayete scroll yap
   void _scrollToAyah(int index) {
     if (_scrollController.hasClients && index < _ayetler.length) {
@@ -196,7 +233,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
 
       _scrollController.animateTo(
         targetOffset,
-        duration: const Duration(milliseconds: 300), // Sabit süre daha performanslı
+        duration: const Duration(
+          milliseconds: 100,
+        ), // Sabit süre daha performanslı
         curve: Curves.easeOutCubic,
       );
     }
@@ -229,22 +268,8 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
     if (ayahIndex < _ayetler.length) {
       final provider = Provider.of<KuranProvider>(context, listen: false);
       provider.saveLastReadPosition(
-          widget.surahModel.number,
-          _ayetler[ayahIndex].number
-      );
-    }
-  }
-
-  /// Başarı mesajı göster
-  void _showSuccessSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
+        widget.surahModel.number,
+        _ayetler[ayahIndex].number,
       );
     }
   }
@@ -282,13 +307,13 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            theme.primaryColor.withOpacity(0.1),
-            theme.primaryColor.withOpacity(0.05),
+            theme.primaryColor.withValues(alpha: 0.1),
+            theme.primaryColor.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: theme.primaryColor.withOpacity(0.2),
+          color: theme.primaryColor.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -299,7 +324,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               border: Border.all(
-                color: theme.primaryColor.withOpacity(0.3),
+                color: theme.primaryColor.withValues(alpha: 0.3),
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(12),
@@ -311,7 +336,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: provider.arabicFontSize + 4,
-                  fontFamily: 'UthmanicHafs',
+                  fontFamily: 'Amiri',
                   color: theme.primaryColor,
                   fontWeight: FontWeight.w500,
                   height: 1.8,
@@ -328,7 +353,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.05),
+                color: theme.primaryColor.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -336,7 +361,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: theme.primaryColor.withOpacity(0.8),
+                  color: theme.primaryColor.withValues(alpha: 0.8),
                   fontStyle: FontStyle.italic,
                   height: 1.4,
                 ),
@@ -350,6 +375,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   @override
   void dispose() {
     AudioManager.stopAudio();
+    AudioManager.cancelRangeLoop();
     _scrollController.dispose();
     super.dispose();
   }
@@ -367,9 +393,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('${widget.surahModel.number}. ${widget.surahModel.turkishName}'),
             Text(
-              '${widget.surahModel.englishNameTranslation} • ${widget.surahModel.numberOfAyahs} ${AppStrings.ayah}',
+              '${widget.surahModel.number}. ${widget.surahModel.turkishName}',
+            ),
+            Text(
+              '${widget.surahModel.revelationType == 'meccan' ? 'Mekki' : 'Medeni'} • ${widget.surahModel.numberOfAyahs} ${AppStrings.ayah}',
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
@@ -380,9 +408,11 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
         ),
         actions: [
           IconButton(
-            icon: Icon(provider.translationGoster
-                ? Icons.translate
-                : Icons.translate_outlined),
+            icon: Icon(
+              provider.translationGoster
+                  ? Icons.translate
+                  : Icons.translate_outlined,
+            ),
             onPressed: provider.toggleTranslation,
             tooltip: AppStrings.tooltipTranslation,
           ),
@@ -461,40 +491,93 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Flexible(
-                        child: Text(
-                          _ayetler.isNotEmpty && _aktifAyetIndex < _ayetler.length
-                              ? '${AppStrings.ayah} ${_ayetler[_aktifAyetIndex].number}/${widget.surahModel.numberOfAyahs}'
-                              : '${AppStrings.ayah} 1/${widget.surahModel.numberOfAyahs}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: theme.primaryColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _ayetler.isNotEmpty &&
+                                      _aktifAyetIndex < _ayetler.length
+                                  ? '${AppStrings.ayah} ${_ayetler[_aktifAyetIndex].number}/${widget.surahModel.numberOfAyahs}'
+                                  : '${AppStrings.ayah} 1/${widget.surahModel.numberOfAyahs}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: theme.primaryColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            // Range loop progress
+                            if (AudioManager.isRangeLoopMode)
+                              Text(
+                                'Tekrar: ${AudioManager.rangeLoopCount + 1}/${AudioManager.maxRangeLoopCount} '
+                                '(${(AudioManager.rangeLoopStart ?? 0) + 1}-${(AudioManager.rangeLoopEnd ?? 0) + 1})',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.skip_previous, color: theme.primaryColor),
-                            onPressed: _aktifAyetIndex > 0 ? _previousAyah : null,
-                            tooltip: AppStrings.previous,
+                      // Kompakt audio kontrol paneli
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: theme.primaryColor.withValues(alpha: 0.2),
+                            width: 1,
                           ),
-                          IconButton(
-                            icon: Icon(
-                              _sesOynatiliyor ? Icons.pause : Icons.play_arrow,
-                              color: theme.primaryColor,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Previous
+                            _buildCompactButton(
+                              icon: Icons.skip_previous,
+                              onPressed: _aktifAyetIndex > 0 ? _previousAyah : null,
+                              isEnabled: _aktifAyetIndex > 0,
                             ),
-                            onPressed: _playFullSurah,
-                            tooltip: _sesOynatiliyor ? AppStrings.pause : AppStrings.playSurah,
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.skip_next, color: theme.primaryColor),
-                            onPressed: _aktifAyetIndex < _ayetler.length - 1 ? _nextAyah : null,
-                            tooltip: AppStrings.next,
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            // Play/Pause
+                            _buildCompactButton(
+                              icon: _sesOynatiliyor ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                              onPressed: _playFullSurah,
+                              isEnabled: true,
+                              isPrimary: true,
+                            ),
+                            const SizedBox(width: 4),
+                            // Next
+                            _buildCompactButton(
+                              icon: Icons.skip_next,
+                              onPressed: _aktifAyetIndex < _ayetler.length - 1 ? _nextAyah : null,
+                              isEnabled: _aktifAyetIndex < _ayetler.length - 1,
+                            ),
+                            const SizedBox(width: 8),
+                            // Loop controls
+                            _buildCompactButton(
+                              icon: AudioManager.isLoopMode ? Icons.repeat_one : Icons.repeat_one_outlined,
+                              onPressed: () {
+                                AudioManager.toggleLoopMode();
+                                setState(() {});
+                              },
+                              isEnabled: true,
+                              isActive: AudioManager.isLoopMode,
+                              activeColor: Colors.green,
+                            ),
+                            const SizedBox(width: 4),
+                            _buildCompactButton(
+                              icon: _rangeLoopMode ? Icons.repeat : Icons.repeat_outlined,
+                              onPressed: _showRangeLoopDialog,
+                              isEnabled: true,
+                              isActive: _rangeLoopMode,
+                              activeColor: Colors.orange,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -502,9 +585,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
               ),
 
               // Ana içerik
-              Expanded(
-                child: _buildMainContent(theme),
-              ),
+              Expanded(child: _buildMainContent(theme)),
             ],
           ),
         ),
@@ -578,9 +659,7 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           if (widget.surahModel.number != 9)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              sliver: SliverToBoxAdapter(
-                child: _buildBismillah(),
-              ),
+              sliver: SliverToBoxAdapter(child: _buildBismillah()),
             ),
 
           // Ayetler - Performans optimizasyonu için ListView.builder kullan
@@ -590,7 +669,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
               itemCount: _ayetler.length,
               itemBuilder: (context, index) {
                 final ayet = _ayetler[index];
-                final isCurrentAudio = AudioManager.currentAudioUrl == ayet.audioUrl && AudioManager.isPlaying;
+                final isCurrentAudio =
+                    AudioManager.currentAudioUrl == ayet.audioUrl &&
+                    AudioManager.isPlaying;
                 final isSelected = _seciliAyetIndex == index;
 
                 return RepaintBoundary(
@@ -625,7 +706,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
   /// Yer işaretli ayetleri göster
   void _showBookmarkedAyahs() {
     final provider = Provider.of<KuranProvider>(context, listen: false);
-    final bookmarkedKeys = provider.getBookmarkedAyahsForSurah(widget.surahModel.number);
+    final bookmarkedKeys = provider.getBookmarkedAyahsForSurah(
+      widget.surahModel.number,
+    );
 
     showModalBottomSheet(
       context: context,
@@ -648,7 +731,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                   title: Text('${AppStrings.ayah} $ayahNumber'),
                   onTap: () {
                     Navigator.pop(context);
-                    final index = _ayetler.indexWhere((a) => a.number == ayahNumber);
+                    final index = _ayetler.indexWhere(
+                      (a) => a.number == ayahNumber,
+                    );
                     if (index != -1) {
                       setState(() {
                         _aktifAyetIndex = index;
@@ -676,7 +761,8 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
-            labelText: '${AppStrings.ayahNumber} (1-${widget.surahModel.numberOfAyahs})',
+            labelText:
+                '${AppStrings.ayahNumber} (1-${widget.surahModel.numberOfAyahs})',
             border: const OutlineInputBorder(),
           ),
         ),
@@ -692,7 +778,9 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
                   ayahNumber >= 1 &&
                   ayahNumber <= widget.surahModel.numberOfAyahs) {
                 Navigator.pop(context);
-                final index = _ayetler.indexWhere((a) => a.number == ayahNumber);
+                final index = _ayetler.indexWhere(
+                  (a) => a.number == ayahNumber,
+                );
                 if (index != -1) {
                   setState(() {
                     _aktifAyetIndex = index;
@@ -704,6 +792,243 @@ class _InteractiveMushafEkraniState extends State<InteractiveMushafEkrani> {
             child: Text(AppStrings.ok),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Aralık loop dialogu
+  void _showRangeLoopDialog() {
+    int tempStartIndex = _rangeLoopStartIndex ?? 0;
+    int tempEndIndex = _rangeLoopEndIndex ?? (_ayetler.length - 1);
+    int tempLoopCount = _rangeLoopCount;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.repeat, color: Theme.of(context).primaryColor),
+              const SizedBox(width: 8),
+              const Text('Aralık Tekrar Ayarları'),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Başlangıç ayeti
+                ListTile(
+                  leading: const Icon(Icons.play_arrow),
+                  title: const Text('Başlangıç Ayeti'),
+                  subtitle: Text('${tempStartIndex + 1}. Ayet'),
+                  trailing: SizedBox(
+                    width: 100,
+                    child: Slider(
+                      value: tempStartIndex.toDouble(),
+                      min: 0,
+                      max: (_ayetler.length - 1).toDouble(),
+                      divisions: _ayetler.length - 1,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempStartIndex = value.toInt();
+                          if (tempStartIndex > tempEndIndex) {
+                            tempEndIndex = tempStartIndex;
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                
+                // Bitiş ayeti
+                ListTile(
+                  leading: const Icon(Icons.stop),
+                  title: const Text('Bitiş Ayeti'),
+                  subtitle: Text('${tempEndIndex + 1}. Ayet'),
+                  trailing: SizedBox(
+                    width: 100,
+                    child: Slider(
+                      value: tempEndIndex.toDouble(),
+                      min: tempStartIndex.toDouble(),
+                      max: (_ayetler.length - 1).toDouble(),
+                      divisions: _ayetler.length - 1 - tempStartIndex,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempEndIndex = value.toInt();
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                
+                const Divider(),
+                
+                // Tekrar sayısı
+                ListTile(
+                  leading: const Icon(Icons.loop),
+                  title: const Text('Tekrar Sayısı'),
+                  subtitle: Text('$tempLoopCount defa'),
+                  trailing: SizedBox(
+                    width: 100,
+                    child: Slider(
+                      value: tempLoopCount.toDouble(),
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempLoopCount = value.toInt();
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                
+                const Divider(),
+                
+                // Bilgi
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, 
+                           color: Theme.of(context).primaryColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${tempEndIndex - tempStartIndex + 1} ayet, $tempLoopCount defa tekrar edilecek',
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (_rangeLoopMode)
+              TextButton(
+                onPressed: () {
+                  _stopRangeLoop();
+                  Navigator.pop(context);
+                },
+                child: const Text('Durdur'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(AppStrings.cancel),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _startRangeLoop(tempStartIndex, tempEndIndex, tempLoopCount);
+                Navigator.pop(context);
+              },
+              child: const Text('Başlat'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Aralık loop başlat
+  void _startRangeLoop(int startIndex, int endIndex, int loopCount) {
+    setState(() {
+      _rangeLoopStartIndex = startIndex;
+      _rangeLoopEndIndex = endIndex;
+      _rangeLoopCount = loopCount;
+      _rangeLoopMode = true;
+    });
+
+    // Audio URL'lerini hazırla
+    final audioUrls = _ayetler.map((ayet) => ayet.audioUrl).toList();
+    
+    // AudioManager'a aralık ayarla
+    AudioManager.setRangeLoop(
+      audioUrls: audioUrls,
+      startIndex: startIndex,
+      endIndex: endIndex,
+      repeatCount: loopCount,
+    );
+    
+    // Loop başlat
+    AudioManager.startRangeLoop(
+      onComplete: () {
+        if (mounted) {
+          setState(() {
+            _rangeLoopMode = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Aralık tekrar tamamlandı'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  /// Aralık loop durdur
+  void _stopRangeLoop() {
+    setState(() {
+      _rangeLoopMode = false;
+      _rangeLoopStartIndex = null;
+      _rangeLoopEndIndex = null;
+    });
+    
+    AudioManager.cancelRangeLoop();
+  }
+
+  /// Kompakt audio butonu
+  Widget _buildCompactButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required bool isEnabled,
+    bool isPrimary = false,
+    bool isActive = false,
+    Color? activeColor,
+  }) {
+    final theme = Theme.of(context);
+    
+    Color getColor() {
+      if (!isEnabled) return theme.disabledColor;
+      if (isActive && activeColor != null) return activeColor;
+      if (isPrimary) return theme.primaryColor;
+      return theme.textTheme.bodyMedium?.color ?? theme.primaryColor;
+    }
+
+    return InkWell(
+      onTap: isEnabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: isPrimary ? 36 : 32,
+        height: isPrimary ? 36 : 32,
+        decoration: BoxDecoration(
+          color: isActive && activeColor != null 
+              ? activeColor.withValues(alpha: 0.1) 
+              : (isPrimary ? theme.primaryColor.withValues(alpha: 0.1) : Colors.transparent),
+          borderRadius: BorderRadius.circular(16),
+          border: isActive ? Border.all(
+            color: activeColor ?? theme.primaryColor,
+            width: 1,
+          ) : null,
+        ),
+        child: Icon(
+          icon,
+          size: isPrimary ? 24 : 20,
+          color: getColor(),
+        ),
       ),
     );
   }

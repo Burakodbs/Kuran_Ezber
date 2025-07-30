@@ -5,6 +5,8 @@ import '../utils/storage_helper.dart';
 import '../constants/app_strings.dart';
 import '../constants/app_constants.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_info.dart';
+import 'about_screen.dart';
 
 class AyarlarEkrani extends StatefulWidget {
   const AyarlarEkrani({super.key});
@@ -185,10 +187,10 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColor.withOpacity(0.1),
+                              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Text(
@@ -197,7 +199,7 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                               textDirection: TextDirection.rtl,
                               style: TextStyle(
                                 fontSize: provider.arabicFontSize,
-                                fontFamily: 'UthmanicHafs',
+                                fontFamily: 'Amiri',
                                 color: Theme.of(context).primaryColor,
                                 height: 1.8,
                               ),
@@ -232,7 +234,7 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                 ListTile(
                   leading: const Icon(Icons.person),
                   title: Text(AppStrings.audioReciter),
-                  subtitle: Text(AppStrings.reciterAlafasy),
+                  subtitle: Text(AppStrings.reciterAhmedTalebHameed),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => _showQariDialog(),
                 ),
@@ -396,6 +398,17 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('Hakkında & Developer'),
+                  subtitle: Text('${AppInfo.appName} v${AppInfo.appVersion}'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AboutScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.star_rate),
                   title: const Text('Uygulamayı Değerlendir'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -427,7 +440,7 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -613,15 +626,28 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: Text(AppStrings.reciterAlafasy),
+              title: Text(AppStrings.reciterAhmedTalebHameed),
               subtitle: const Text('Varsayılan'),
               trailing: const Icon(Icons.check, color: Colors.green),
               selected: true,
             ),
             ListTile(
+              title: Text(AppStrings.reciterAlafasy),
+              subtitle: const Text('Alternatif'),
+              enabled: true,
+              onTap: () {
+                // Buraya reciter değiştirme kodunu ekleyebiliriz
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
               title: Text(AppStrings.reciterSudais),
-              subtitle: const Text('Yakında'),
-              enabled: false,
+              subtitle: const Text('Alternatif'),
+              enabled: true,
+              onTap: () {
+                // Buraya reciter değiştirme kodunu ekleyebiliriz
+                Navigator.pop(context);
+              },
             ),
             ListTile(
               title: Text(AppStrings.reciterGhamdi),
@@ -827,10 +853,12 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
           ),
           TextButton(
             onPressed: () async {
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               await provider.clearAllBookmarks();
-              Navigator.pop(context);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                navigator.pop();
+                messenger.showSnackBar(
                   SnackBar(
                     content: const Text('Tüm yer işaretleri silindi'),
                     backgroundColor: Colors.orange,
@@ -864,13 +892,14 @@ class _AyarlarEkraniState extends State<AyarlarEkrani>
             onPressed: () async {
               Navigator.pop(context);
               setState(() => _isLoading = true);
+              final messenger = ScaffoldMessenger.of(context);
 
               await provider.clearCache();
               await _loadStorageInfo();
 
               if (mounted) {
                 setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(AppStrings.cacheCleared),
                     backgroundColor: Colors.green,

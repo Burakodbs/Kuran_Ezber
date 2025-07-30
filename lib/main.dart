@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/kuran_provider.dart';
 import 'screens/sure_listesi.dart';
 import 'utils/storage_helper.dart';
+import 'utils/audio_manager.dart';
 import 'constants/app_colors.dart';
 import 'constants/app_strings.dart';
 
@@ -40,8 +41,45 @@ void main() async {
   );
 }
 
-class KuranEzberApp extends StatelessWidget {
+class KuranEzberApp extends StatefulWidget {
   const KuranEzberApp({super.key});
+
+  @override
+  State<KuranEzberApp> createState() => _KuranEzberAppState();
+}
+
+class _KuranEzberAppState extends State<KuranEzberApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Dispose audio resources when app is closing
+    AudioManager.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        // Pause audio when app goes to background
+        AudioManager.pauseAudio();
+        break;
+      case AppLifecycleState.resumed:
+        // Audio will resume automatically when user taps play
+        break;
+      case AppLifecycleState.inactive:
+        break;
+      case AppLifecycleState.hidden:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +109,7 @@ class KuranEzberApp extends StatelessWidget {
             return MediaQuery(
               // Text scaling'i sınırla
               data: MediaQuery.of(context).copyWith(
-                textScaler: TextScaler.linear(MediaQuery.of(context).textScaleFactor.clamp(0.8, 1.2)),
+                textScaler: MediaQuery.of(context).textScaler.clamp(minScaleFactor: 0.8, maxScaleFactor: 1.2),
               ),
               child: child!,
             );
@@ -117,7 +155,7 @@ class KuranEzberApp extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         color: AppColors.lightCard,
-        shadowColor: Colors.black.withOpacity(0.1),
+        shadowColor: Colors.black.withValues(alpha: 0.1),
       ),
 
       // ElevatedButton Theme
@@ -200,8 +238,8 @@ class KuranEzberApp extends StatelessWidget {
       // Chip Theme
       chipTheme: ChipThemeData(
         backgroundColor: Colors.grey[100],
-        selectedColor: AppColors.primary.withOpacity(0.2),
-        secondarySelectedColor: AppColors.primary.withOpacity(0.1),
+        selectedColor: AppColors.primary.withValues(alpha: 0.2),
+        secondarySelectedColor: AppColors.primary.withValues(alpha: 0.1),
         labelStyle: const TextStyle(fontSize: 14),
         secondaryLabelStyle: TextStyle(color: AppColors.primary),
         brightness: Brightness.light,
@@ -218,7 +256,7 @@ class KuranEzberApp extends StatelessWidget {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withOpacity(0.5);
+            return AppColors.primary.withValues(alpha: 0.5);
           }
           return Colors.grey[300];
         }),
@@ -227,9 +265,9 @@ class KuranEzberApp extends StatelessWidget {
       // Slider Theme
       sliderTheme: SliderThemeData(
         activeTrackColor: AppColors.primary,
-        inactiveTrackColor: AppColors.primary.withOpacity(0.3),
+        inactiveTrackColor: AppColors.primary.withValues(alpha: 0.3),
         thumbColor: AppColors.primary,
-        overlayColor: AppColors.primary.withOpacity(0.2),
+        overlayColor: AppColors.primary.withValues(alpha: 0.2),
         valueIndicatorColor: AppColors.primary,
         valueIndicatorTextStyle: const TextStyle(color: Colors.white),
       ),
@@ -237,8 +275,8 @@ class KuranEzberApp extends StatelessWidget {
       // ProgressIndicator Theme
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: AppColors.primary,
-        linearTrackColor: AppColors.primary.withOpacity(0.3),
-        circularTrackColor: AppColors.primary.withOpacity(0.3),
+        linearTrackColor: AppColors.primary.withValues(alpha: 0.3),
+        circularTrackColor: AppColors.primary.withValues(alpha: 0.3),
       ),
 
       // Divider Theme
@@ -253,7 +291,7 @@ class KuranEzberApp extends StatelessWidget {
         iconColor: AppColors.primary,
         textColor: AppColors.lightText,
         tileColor: Colors.transparent,
-        selectedTileColor: AppColors.primary.withOpacity(0.1),
+        selectedTileColor: AppColors.primary.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
@@ -343,7 +381,7 @@ class KuranEzberApp extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         color: AppColors.darkCard,
-        shadowColor: Colors.black.withOpacity(0.3),
+        shadowColor: Colors.black.withValues(alpha: 0.3),
       ),
 
       // ElevatedButton Theme
@@ -398,7 +436,7 @@ class KuranEzberApp extends StatelessWidget {
       // Chip Theme
       chipTheme: ChipThemeData(
         backgroundColor: Colors.grey[800],
-        selectedColor: AppColors.accent.withOpacity(0.3),
+        selectedColor: AppColors.accent.withValues(alpha: 0.3),
         labelStyle: const TextStyle(fontSize: 14, color: Colors.white),
         secondaryLabelStyle: TextStyle(color: AppColors.accent),
         brightness: Brightness.dark,
@@ -415,7 +453,7 @@ class KuranEzberApp extends StatelessWidget {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.accent.withOpacity(0.5);
+            return AppColors.accent.withValues(alpha: 0.5);
           }
           return Colors.grey[600];
         }),
@@ -424,9 +462,9 @@ class KuranEzberApp extends StatelessWidget {
       // Slider Theme
       sliderTheme: SliderThemeData(
         activeTrackColor: AppColors.accent,
-        inactiveTrackColor: AppColors.accent.withOpacity(0.3),
+        inactiveTrackColor: AppColors.accent.withValues(alpha: 0.3),
         thumbColor: AppColors.accent,
-        overlayColor: AppColors.accent.withOpacity(0.2),
+        overlayColor: AppColors.accent.withValues(alpha: 0.2),
         valueIndicatorColor: AppColors.accent,
       ),
 
@@ -442,7 +480,7 @@ class KuranEzberApp extends StatelessWidget {
         iconColor: AppColors.accent,
         textColor: AppColors.darkText,
         tileColor: Colors.transparent,
-        selectedTileColor: AppColors.accent.withOpacity(0.2),
+        selectedTileColor: AppColors.accent.withValues(alpha: 0.2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
 
@@ -548,7 +586,7 @@ class KuranEzberApp extends StatelessWidget {
       bodySmall: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.normal,
-        color: textColor.withOpacity(0.8),
+        color: textColor.withValues(alpha: 0.8),
         fontFamily: 'Poppins',
         height: 1.3,
       ),
@@ -567,7 +605,7 @@ class KuranEzberApp extends StatelessWidget {
       labelSmall: TextStyle(
         fontSize: 10,
         fontWeight: FontWeight.w500,
-        color: textColor.withOpacity(0.8),
+        color: textColor.withValues(alpha: 0.8),
         fontFamily: 'Poppins',
       ),
     );

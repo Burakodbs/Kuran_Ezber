@@ -1,30 +1,43 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+// Audio Manager unit tests for Kuran Ezber app
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:kuran_ezber/main.dart';
+import 'package:kuran_ezber/utils/audio_manager.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const KuranEzberApp());
+  group('AudioManager Tests', () {
+    test('AudioManager initial state', () {
+      expect(AudioManager.isPlaying, false);
+      expect(AudioManager.isPaused, false);
+      expect(AudioManager.currentAudioUrl, null);
+      expect(AudioManager.volume, 1.0);
+      expect(AudioManager.playbackSpeed, 1.0);
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('URL validation cache operations', () {
+      // Clear cache
+      AudioManager.clearUrlCache();
+      
+      // Test debug info includes cache size
+      final debugInfo = AudioManager.getDebugInfo();
+      expect(debugInfo['cacheSize'], 0);
+      expect(debugInfo.containsKey('isDisposed'), true);
+      expect(debugInfo.containsKey('hasActiveSubscriptions'), true);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('Audio state management', () {
+      expect(AudioManager.progress, 0.0);
+      expect(AudioManager.remainingTime, Duration.zero);
+      expect(AudioManager.formattedPosition, '00:00');
+      expect(AudioManager.formattedDuration, '00:00');
+      expect(AudioManager.formattedRemainingTime, '00:00');
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('Debouncing mechanism state', () {
+      final debugInfo = AudioManager.getDebugInfo();
+      expect(debugInfo.containsKey('isProcessingPlayRequest'), true);
+      expect(debugInfo.containsKey('lastPlayCall'), true);
+      
+      // Initial state should not be processing
+      expect(debugInfo['isProcessingPlayRequest'], false);
+    });
   });
 }

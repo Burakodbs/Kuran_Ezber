@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_strings.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_info.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -193,6 +194,7 @@ class IslamicAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget _buildIslamicPattern() {
     return Stack(
       children: [
+        // Modern geometric pattern
         Positioned(
           top: -20,
           right: -20,
@@ -201,31 +203,59 @@ class IslamicAppBar extends StatelessWidget implements PreferredSizeWidget {
             height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.05),
+              gradient: RadialGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.transparent,
+                ],
+              ),
             ),
           ),
         ),
         Positioned(
-          top: 30,
-          left: -30,
+          top: 20,
+          left: -40,
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  AppColors.gold.withValues(alpha: 0.1),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -30,
+          right: 30,
           child: Container(
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.05),
+                  Colors.transparent,
+                ],
+              ),
             ),
           ),
         ),
+        // Developer watermark - subtle
         Positioned(
-          bottom: -10,
-          right: 50,
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.07),
+          bottom: 8,
+          right: 16,
+          child: Text(
+            'by ${AppInfo.developerName}',
+            style: TextStyle(
+              fontSize: 8,
+              color: Colors.white.withValues(alpha: 0.3),
+              fontWeight: FontWeight.w300,
             ),
           ),
         ),
@@ -390,7 +420,7 @@ class SurahDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
