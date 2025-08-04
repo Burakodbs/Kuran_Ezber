@@ -9,7 +9,7 @@ class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  _SearchScreenState createState() => _SearchScreenState();
+  State<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderStateMixin {
@@ -95,7 +95,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: Offset(0, 2),
           ),
@@ -155,13 +155,13 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.1),
+              color: theme.primaryColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.search,
               size: 60,
-              color: theme.primaryColor.withOpacity(0.7),
+              color: theme.primaryColor.withValues(alpha: 0.7),
             ),
           ),
           SizedBox(height: 24),
@@ -203,10 +203,10 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       margin: EdgeInsets.symmetric(horizontal: 24),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.primaryColor.withOpacity(0.05),
+        color: theme.primaryColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: theme.primaryColor.withOpacity(0.2),
+          color: theme.primaryColor.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
@@ -227,7 +227,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                 Icon(
                   tip['icon'] as IconData,
                   size: 16,
-                  color: theme.primaryColor.withOpacity(0.7),
+                  color: theme.primaryColor.withValues(alpha: 0.7),
                 ),
                 SizedBox(width: 8),
                 Expanded(
@@ -255,13 +255,13 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.search_off,
               size: 50,
-              color: Colors.orange.withOpacity(0.7),
+              color: Colors.orange.withValues(alpha: 0.7),
             ),
           ),
           SizedBox(height: 24),

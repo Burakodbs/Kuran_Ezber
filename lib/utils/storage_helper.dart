@@ -361,6 +361,15 @@ class StorageHelper {
     return await getString('audio_quality', '128') ?? '128';
   }
 
+  // Audio Loop Mode
+  static Future<bool> setAudioLoopMode(bool enabled) async {
+    return await setBool('audio_loop_mode', enabled);
+  }
+
+  static Future<bool> getAudioLoopMode() async {
+    return await getBool('audio_loop_mode', false);
+  }
+
   // Statistics
   static Future<bool> incrementReadCount() async {
     final currentCount = await getInt('read_count', 0) ?? 0;

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/kuran_provider.dart';
 import '../models/ayet_model.dart';
+import '../utils/audio_manager.dart';
 
 class AyetItem extends StatefulWidget {
   final AyetModel ayet;
@@ -26,6 +27,8 @@ class AyetItem extends StatefulWidget {
 
 class _AyetItemState extends State<AyetItem> {
   bool _showActions = false;
+  DateTime? _lastPlayButtonPress;
+  static const Duration _buttonDebounceDelay = Duration(milliseconds: 500);
 
   // Arapça rakamları
   static const Map<int, String> arabicNumbers = {
@@ -119,7 +122,7 @@ class _AyetItemState extends State<AyetItem> {
                       ? theme.primaryColor
                       : theme.textTheme.bodyLarge?.color ?? Colors.black87,
                   fontWeight: widget.isPlaying ? FontWeight.w600 : FontWeight.w400,
-                  fontFamily: 'UthmanicHafs',
+                  fontFamily: 'Amiri',
                   wordSpacing: 3,
                   letterSpacing: 0.5,
                 ),
@@ -160,13 +163,13 @@ class _AyetItemState extends State<AyetItem> {
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: isPlaying
-                      ? Colors.green.withOpacity(0.7)
-                      : theme.primaryColor.withOpacity(0.6),
+                      ? Colors.green.withValues(alpha: 0.7)
+                      : theme.primaryColor.withValues(alpha: 0.6),
                   width: 1,
                 ),
                 color: isPlaying
-                    ? Colors.green.withOpacity(0.1)
-                    : theme.primaryColor.withOpacity(0.1),
+                    ? Colors.green.withValues(alpha: 0.1)
+                    : theme.primaryColor.withValues(alpha: 0.1),
               ),
               child: Center(
                 child: Text(
@@ -177,7 +180,7 @@ class _AyetItemState extends State<AyetItem> {
                     color: isPlaying
                         ? Colors.green.shade700
                         : theme.primaryColor,
-                    fontFamily: 'UthmanicHafs',
+                    fontFamily: 'Amiri',
                   ),
                 ),
               ),
@@ -208,14 +211,14 @@ class _AyetItemState extends State<AyetItem> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color: theme.primaryColor.withOpacity(0.04),
+          color: theme.primaryColor.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           widget.ayet.turkish,
           style: TextStyle(
             fontSize: 11,
-            color: theme.primaryColor.withOpacity(0.8),
+            color: theme.primaryColor.withValues(alpha: 0.8),
             height: 1.4,
             fontStyle: FontStyle.italic,
           ),
@@ -229,7 +232,7 @@ class _AyetItemState extends State<AyetItem> {
     return Container(
       height: 28,
       decoration: BoxDecoration(
-        color: theme.primaryColor.withOpacity(0.06),
+        color: theme.primaryColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -237,8 +240,17 @@ class _AyetItemState extends State<AyetItem> {
         children: [
           _buildQuickAction(
             icon: widget.isPlaying ? Icons.pause : Icons.play_arrow,
-            onPressed: widget.onPlayPressed,
+            onPressed: _handlePlayButtonPress,
             color: widget.isPlaying ? Colors.green : theme.primaryColor,
+          ),
+          _buildQuickAction(
+            icon: AudioManager.isLoopMode ? Icons.repeat : Icons.repeat_outlined,
+            onPressed: () {
+              setState(() {
+                AudioManager.toggleLoopMode();
+              });
+            },
+            color: AudioManager.isLoopMode ? Colors.green : theme.primaryColor,
           ),
           _buildQuickAction(
             icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
@@ -285,11 +297,11 @@ class _AyetItemState extends State<AyetItem> {
 
   Color _getBackgroundColor(ThemeData theme) {
     if (widget.isPlaying) {
-      return theme.primaryColor.withOpacity(0.08);
+      return theme.primaryColor.withValues(alpha: 0.08);
     } else if (widget.isSelected) {
-      return theme.primaryColor.withOpacity(0.04);
+      return theme.primaryColor.withValues(alpha: 0.04);
     } else if (_showActions) {
-      return theme.primaryColor.withOpacity(0.02);
+      return theme.primaryColor.withValues(alpha: 0.02);
     }
     return Colors.transparent;
   }
@@ -298,6 +310,18 @@ class _AyetItemState extends State<AyetItem> {
     final text = _formatAyahForSharing();
     _showSnackBar('Paylaş özelliği yakında', Colors.blue);
     Clipboard.setData(ClipboardData(text: text));
+  }
+
+  void _handlePlayButtonPress() {
+    final now = DateTime.now();
+    if (_lastPlayButtonPress != null && 
+        now.difference(_lastPlayButtonPress!) < _buttonDebounceDelay) {
+      debugPrint('AyetItem: Debouncing rapid play button press');
+      return;
+    }
+    
+    _lastPlayButtonPress = now;
+    widget.onPlayPressed();
   }
 
   void _handleCopy() {

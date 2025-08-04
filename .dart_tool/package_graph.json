@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "kuran_ezber",
-      "version": "1.0.0+1",
+      "version": "2.0.0+1",
       "dependencies": [
         "audioplayers",
         "cupertino_icons",
@@ -13,7 +13,8 @@
         "google_fonts",
         "http",
         "provider",
-        "shared_preferences"
+        "shared_preferences",
+        "url_launcher"
       ],
       "devDependencies": [
         "flutter_lints",
@@ -66,8 +67,22 @@
       ]
     },
     {
+      "name": "url_launcher",
+      "version": "6.3.2",
+      "dependencies": [
+        "flutter",
+        "url_launcher_android",
+        "url_launcher_ios",
+        "url_launcher_linux",
+        "url_launcher_macos",
+        "url_launcher_platform_interface",
+        "url_launcher_web",
+        "url_launcher_windows"
+      ]
+    },
+    {
       "name": "audioplayers",
-      "version": "6.4.0",
+      "version": "6.5.0",
       "dependencies": [
         "audioplayers_android",
         "audioplayers_darwin",
@@ -316,6 +331,64 @@
       ]
     },
     {
+      "name": "url_launcher_windows",
+      "version": "3.1.4",
+      "dependencies": [
+        "flutter",
+        "url_launcher_platform_interface"
+      ]
+    },
+    {
+      "name": "url_launcher_web",
+      "version": "2.4.1",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins",
+        "url_launcher_platform_interface",
+        "web"
+      ]
+    },
+    {
+      "name": "url_launcher_platform_interface",
+      "version": "2.3.2",
+      "dependencies": [
+        "flutter",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "url_launcher_macos",
+      "version": "3.2.2",
+      "dependencies": [
+        "flutter",
+        "url_launcher_platform_interface"
+      ]
+    },
+    {
+      "name": "url_launcher_linux",
+      "version": "3.2.1",
+      "dependencies": [
+        "flutter",
+        "url_launcher_platform_interface"
+      ]
+    },
+    {
+      "name": "url_launcher_ios",
+      "version": "6.3.3",
+      "dependencies": [
+        "flutter",
+        "url_launcher_platform_interface"
+      ]
+    },
+    {
+      "name": "url_launcher_android",
+      "version": "6.3.16",
+      "dependencies": [
+        "flutter",
+        "url_launcher_platform_interface"
+      ]
+    },
+    {
       "name": "uuid",
       "version": "4.5.1",
       "dependencies": [
@@ -327,7 +400,7 @@
     },
     {
       "name": "synchronized",
-      "version": "3.3.1",
+      "version": "3.4.0",
       "dependencies": []
     },
     {
@@ -340,7 +413,7 @@
     },
     {
       "name": "audioplayers_windows",
-      "version": "4.2.0",
+      "version": "4.2.1",
       "dependencies": [
         "audioplayers_platform_interface",
         "flutter"
@@ -348,7 +421,7 @@
     },
     {
       "name": "audioplayers_web",
-      "version": "5.1.0",
+      "version": "5.1.1",
       "dependencies": [
         "audioplayers_platform_interface",
         "flutter",
@@ -358,7 +431,7 @@
     },
     {
       "name": "audioplayers_platform_interface",
-      "version": "7.1.0",
+      "version": "7.1.1",
       "dependencies": [
         "collection",
         "flutter",
@@ -368,7 +441,7 @@
     },
     {
       "name": "audioplayers_linux",
-      "version": "4.2.0",
+      "version": "4.2.1",
       "dependencies": [
         "audioplayers_platform_interface",
         "flutter"
@@ -376,7 +449,7 @@
     },
     {
       "name": "audioplayers_darwin",
-      "version": "6.2.0",
+      "version": "6.3.0",
       "dependencies": [
         "audioplayers_platform_interface",
         "flutter"
@@ -384,7 +457,7 @@
     },
     {
       "name": "audioplayers_android",
-      "version": "5.2.0",
+      "version": "5.2.1",
       "dependencies": [
         "audioplayers_platform_interface",
         "flutter"
@@ -529,16 +602,6 @@
       ]
     },
     {
-      "name": "fixnum",
-      "version": "1.1.1",
-      "dependencies": []
-    },
-    {
-      "name": "sprintf",
-      "version": "7.0.0",
-      "dependencies": []
-    },
-    {
       "name": "flutter_web_plugins",
       "version": "0.0.0",
       "dependencies": [
@@ -556,6 +619,16 @@
       "dependencies": [
         "meta"
       ]
+    },
+    {
+      "name": "fixnum",
+      "version": "1.1.1",
+      "dependencies": []
+    },
+    {
+      "name": "sprintf",
+      "version": "7.0.0",
+      "dependencies": []
     },
     {
       "name": "ffi",

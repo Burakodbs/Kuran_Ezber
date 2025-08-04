@@ -1,8 +1,8 @@
 name: kuran_ezber
-description: "KSU Electronic Mushaf - Kuran Ezber Uygulaması"
+description: "Kur'an-ı Kerim Ezber Uygulaması - Modern ve kullanıcı dostu mobil uygulama"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: ^3.8.0
@@ -23,6 +23,9 @@ dependencies:
 
   # Audio
   audioplayers: ^6.4.0
+
+  # URL Launcher
+  url_launcher: ^6.3.1
 
   # Fonts
   google_fonts: ^6.2.1

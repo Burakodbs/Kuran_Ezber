@@ -7,6 +7,7 @@ import '../widgets/custom_app_bar.dart';
 import 'interactive_mushaf_ekrani.dart';
 import 'ayarlar_ekrani.dart';
 import 'search_screen.dart';
+import 'about_screen.dart';
 import '../constants/app_strings.dart';
 import '../constants/app_constants.dart';
 
@@ -14,7 +15,7 @@ class SureListesi extends StatefulWidget {
   const SureListesi({super.key});
 
   @override
-  _SureListesiState createState() => _SureListesiState();
+  State<SureListesi> createState() => _SureListesiState();
 }
 
 class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin {
@@ -22,8 +23,6 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
   List<SurahModel> _filtrelenmisSureler = [];
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  String _selectedFilter = 'all'; // all, meccan, medinan
-  bool _showFavorites = false;
 
   @override
   void initState() {
@@ -73,35 +72,18 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
     return 1.3;
   }
 
-  /// Sureleri filtrele - Türkçe isimlerle de arama yapabilir
+  /// Sureleri filtrele - Sadece metin araması
   void _filtreSureler() {
     final query = _searchController.text.toLowerCase();
     final provider = Provider.of<KuranProvider>(context, listen: false);
 
     setState(() {
-      List<SurahModel> baseSureler = provider.sureler;
-
-      // Revelation type filter
-      if (_selectedFilter == 'meccan') {
-        baseSureler = baseSureler.where((sure) => sure.revelationType == 'meccan').toList();
-      } else if (_selectedFilter == 'medinan') {
-        baseSureler = baseSureler.where((sure) => sure.revelationType == 'medinan').toList();
-      }
-
-      // Favorites filter
-      if (_showFavorites) {
-        baseSureler = baseSureler.where((sure) {
-          return AppConstants.popularSurahs.contains(sure.number);
-        }).toList();
-      }
-
-      // Text search filter - Türkçe isimler de dahil
       if (query.isEmpty) {
-        _filtrelenmisSureler = baseSureler;
+        _filtrelenmisSureler = provider.sureler;
       } else {
-        _filtrelenmisSureler = baseSureler.where((sure) {
+        _filtrelenmisSureler = provider.sureler.where((sure) {
           return sure.englishName.toLowerCase().contains(query) ||
-              sure.turkishName.toLowerCase().contains(query) ||  // Türkçe isim araması eklendi
+              sure.turkishName.toLowerCase().contains(query) ||
               sure.name.toLowerCase().contains(query) ||
               sure.englishNameTranslation.toLowerCase().contains(query) ||
               sure.number.toString().contains(query);
@@ -110,87 +92,54 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
     });
   }
 
-  /// Filter değiştir
-  void _changeFilter(String filter) {
-    setState(() {
-      _selectedFilter = filter;
-    });
-    _filtreSureler();
-  }
-
-  /// Favorites toggle
-  void _toggleFavorites() {
-    setState(() {
-      _showFavorites = !_showFavorites;
-    });
-    _filtreSureler();
-  }
-
-  /// Filter chips widget'ı
+  /// Filter chips widget'ı - Sadece arama için
   Widget _buildFilterChips() {
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          children: [
-            _buildFilterChip(AppStrings.surahs, 'all'),
-            const SizedBox(width: 8),
-            _buildFilterChip(AppStrings.meccan, 'meccan'),
-            const SizedBox(width: 8),
-            _buildFilterChip(AppStrings.medinan, 'medinan'),
-            const SizedBox(width: 8),
-            _buildFavoriteChip(),
-            const SizedBox(width: 16),
-          ],
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+                ),
+              ),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Sure ara...',
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.clear,
+                            color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filtreSureler();
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  /// Filter chip widget'ı
-  Widget _buildFilterChip(String label, String value) {
-    final isSelected = _selectedFilter == value;
-    final theme = Theme.of(context);
-
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => _changeFilter(value),
-      backgroundColor: theme.cardColor,
-      selectedColor: theme.primaryColor.withOpacity(0.2),
-      checkmarkColor: theme.primaryColor,
-      labelStyle: TextStyle(
-        color: isSelected ? theme.primaryColor : null,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
-    );
-  }
-
-  /// Favorite chip widget'ı
-  Widget _buildFavoriteChip() {
-    final theme = Theme.of(context);
-
-    return FilterChip(
-      label: const Text('Popüler'),
-      selected: _showFavorites,
-      onSelected: (_) => _toggleFavorites(),
-      backgroundColor: theme.cardColor,
-      selectedColor: Colors.orange.withOpacity(0.2),
-      checkmarkColor: Colors.orange,
-      avatar: Icon(
-        _showFavorites ? Icons.star : Icons.star_border,
-        color: _showFavorites ? Colors.orange : null,
-        size: 18,
-      ),
-      labelStyle: TextStyle(
-        color: _showFavorites ? Colors.orange : null,
-        fontWeight: _showFavorites ? FontWeight.bold : FontWeight.normal,
-      ),
-    );
-  }
 
   /// Hızlı erişim sectionı
   Widget _buildQuickAccess(KuranProvider provider) {
@@ -301,7 +250,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
           builder: (context) => InteractiveMushafEkrani(surahModel: surah),
         ),
       );
-    } else {
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Henüz okuma geçmişi bulunamadı'),
@@ -336,7 +285,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
 
               return ListTile(
                 title: Text('${surah.turkishName} - ${AppStrings.ayah} $ayahNumber'),
-                subtitle: Text(surah.englishNameTranslation),
+                subtitle: Text('${surah.number}. Sûre • ${surah.numberOfAyahs} ${AppStrings.ayah}'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -376,6 +325,14 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
               MaterialPageRoute(builder: (context) => const SearchScreen()),
             ),
             tooltip: AppStrings.search,
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AboutScreen()),
+            ),
+            tooltip: 'Hakkında',
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -461,9 +418,9 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
               ),
               child: Column(
                 children: [
@@ -566,10 +523,7 @@ class _SureListesiState extends State<SureListesi> with TickerProviderStateMixin
           ElevatedButton(
             onPressed: () {
               _searchController.clear();
-              _changeFilter('all');
-              setState(() {
-                _showFavorites = false;
-              });
+              _filtreSureler();
             },
             child: Text(AppStrings.clearSearch),
           ),

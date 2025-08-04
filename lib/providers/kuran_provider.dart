@@ -309,13 +309,26 @@ class KuranProvider with ChangeNotifier {
     }
   }
 
-  /// Sureleri cache'e kaydet
+  /// Sureleri cache'e kaydet (ayet sayısı doğrulaması ile)
   Future<void> _cacheSureler(List<SurahModel> sureler) async {
     try {
-      final surahJsonList = sureler.map((s) => s.toJson()).toList();
+      // Ayet sayılarını Diyanet verilerine göre düzelt
+      final correctedSureler = sureler.map((s) {
+        if (!s.isAyahCountValid) {
+          debugPrint('Sure ${s.number} (${s.turkishName}) ayet sayısı düzeltiliyor: ${s.numberOfAyahs} -> ${s.officialAyahCount}');
+          return s.corrected;
+        }
+        return s;
+      }).toList();
+
+      final surahJsonList = correctedSureler.map((s) => s.toJson()).toList();
       await StorageHelper.setCacheData('sureler', {
         'data': surahJsonList,
-        'count': sureler.length,
+        'count': correctedSureler.length,
+        'validationInfo': {
+          'correctedCount': correctedSureler.where((s) => !sureler.firstWhere((orig) => orig.number == s.number).isAyahCountValid).length,
+          'lastValidated': DateTime.now().toIso8601String(),
+        }
       });
     } catch (e) {
       debugPrint('Cache save error: $e');
@@ -488,6 +501,7 @@ class KuranProvider with ChangeNotifier {
     }
   }
 
+
   /// Sure detaylarını cache'e kaydet
   Future<void> _cacheSurahDetails(int surahNumber, List<AyetModel> ayahs) async {
     try {
@@ -508,7 +522,7 @@ class KuranProvider with ChangeNotifier {
 
       if (cachedData != null && cachedData['ayahs'] != null) {
         final List<dynamic> jsonList = cachedData['ayahs'];
-        return jsonList.asMap().entries.map((entry) {
+        final ayahs = jsonList.asMap().entries.map((entry) {
           final index = entry.key;
           final json = entry.value;
           return AyetModel(
@@ -522,6 +536,8 @@ class KuranProvider with ChangeNotifier {
             globalNumber: json['globalNumber'],
           );
         }).toList();
+        
+        return ayahs;
       }
     } catch (e) {
       debugPrint('Load cached surah details error: $e');
@@ -539,6 +555,7 @@ class KuranProvider with ChangeNotifier {
       debugPrint('Clear cache error: $e');
     }
   }
+
 
   /// Storage bilgilerini al
   Future<Map<String, dynamic>> getStorageInfo() async {
